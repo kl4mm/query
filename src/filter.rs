@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use convert_case::{Case, Casing};
+
 use crate::ParseError;
 
 #[derive(Debug, PartialEq)]
@@ -72,6 +74,17 @@ impl Filter {
     pub fn to_string(&self) -> String {
         let mut res = String::new();
         res.push_str(&self.field);
+        res.push_str(" ");
+        res.push_str(self.condition.as_str());
+        res.push_str(" ");
+        res.push_str(&self.value);
+
+        res
+    }
+
+    pub fn to_camel_string(&self) -> String {
+        let mut res = String::new();
+        res.push_str(&self.field.to_case(Case::Snake));
         res.push_str(" ");
         res.push_str(self.condition.as_str());
         res.push_str(" ");

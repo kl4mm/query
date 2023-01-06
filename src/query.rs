@@ -1,5 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
+use convert_case::{Case, Casing};
+
 use crate::{filter::Filter, sort::Sort, ParseError};
 
 #[derive(Debug, PartialEq)]
@@ -58,7 +60,7 @@ impl Query {
         let mut queryv = Vec::new();
         for (i, key) in self.query.keys().enumerate() {
             let mut query = String::new();
-            query.push_str(key);
+            query.push_str(&key.to_case(Case::Snake));
             query.push_str(" = ");
             query.push_str("$");
             let i = i + 1;
@@ -70,7 +72,7 @@ impl Query {
 
         let mut filterv = Vec::new();
         for filter in &self.filters {
-            filterv.push(filter.to_string());
+            filterv.push(filter.to_camel_string());
         }
         let filter = filterv.join(" AND ");
 
@@ -83,7 +85,7 @@ impl Query {
 
         if let Some(ref sort) = self.sort {
             sql.push_str(" SORT BY ");
-            sql.push_str(&sort.to_string());
+            sql.push_str(&sort.to_camel_string());
         }
 
         sql
@@ -136,6 +138,8 @@ mod tests {
 
         let sql = parsed.gen_sql("orders", vec!["id", "status"]);
 
-        dbg!(sql);
+        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND order_id = 1 AND price >= 200 SORT BY price DESC";
+
+        assert_eq!(sql, expected);
     }
 }
