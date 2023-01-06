@@ -94,7 +94,7 @@ impl Query {
 
         // Sort:
         if let Some(ref sort) = self.sort {
-            sql.push_str(" SORT BY ");
+            sql.push_str(" ORDER BY ");
             sql.push_str(&sort.to_camel_string());
         }
 
@@ -178,7 +178,7 @@ mod tests {
 
         let sql = parsed.gen_sql("orders", vec!["id", "status"], vec![]);
 
-        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = 1 AND price >= 200 SORT BY price DESC";
+        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = 1 AND price >= 200 ORDER BY price DESC";
 
         assert_eq!(sql, expected);
     }
@@ -196,7 +196,7 @@ mod tests {
             vec!["JOIN users ON users.id = order.user_id"],
         );
 
-        let expected = "SELECT id, status FROM orders JOIN users ON users.id = order.user_id WHERE user_id = $1 AND user_name = $2 AND order_id = 1 AND price >= 200 SORT BY price DESC";
+        let expected = "SELECT id, status FROM orders JOIN users ON users.id = order.user_id WHERE user_id = $1 AND user_name = $2 AND order_id = 1 AND price >= 200 ORDER BY price DESC";
 
         assert_eq!(sql, expected);
     }
