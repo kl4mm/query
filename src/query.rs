@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::{
+    collections::{BTreeMap, HashSet},
+    str::FromStr,
+};
 
 use crate::{filter::Filter, sort::Sort, ParseError};
 
@@ -46,6 +49,21 @@ impl FromStr for Query {
     }
 }
 
+impl Query {
+    pub fn is_valid(&self, required: Vec<&str>) -> Result<(), String> {
+        for r in required {
+            if let None = self.query.get(r) {
+                let mut res = String::new();
+                res.push_str(r);
+                res.push_str(" is required");
+                Err(res)?
+            };
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -84,5 +102,18 @@ mod tests {
         };
 
         assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn test_is_valid() {
+        let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
+
+        let parsed: Query = query.parse().unwrap();
+
+        let v1 = parsed.is_valid(vec!["userId"]);
+        assert!(v1.is_ok());
+
+        let v1 = parsed.is_valid(vec!["userId", "limit", "offset"]);
+        assert!(v1.is_err());
     }
 }
