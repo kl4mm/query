@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
 use convert_case::{Case, Casing};
 
@@ -51,13 +51,15 @@ pub struct Filter {
     pub value: String,
 }
 
-impl FromStr for Filter {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split: Vec<&str> = s.split('-').collect();
+impl Filter {
+    pub fn new(str: &str, fields: &HashSet<&str>) -> Result<Self, ParseError> {
+        let split: Vec<&str> = str.split('-').collect();
         if split.len() != 3 {
             Err(ParseError::InvalidFilter)?
+        }
+
+        if !fields.contains(split[0]) {
+            Err(ParseError::InvalidField)?
         }
 
         let condition: Condition = split[1].parse()?;
@@ -68,9 +70,7 @@ impl FromStr for Filter {
             value: split[2].into(),
         })
     }
-}
 
-impl Filter {
     pub fn to_string(&self) -> String {
         let mut res = String::new();
         res.push_str(&self.field);

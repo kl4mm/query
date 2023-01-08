@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
 use convert_case::{Case, Casing};
 
@@ -11,21 +11,22 @@ pub struct Sort {
     pub sort_by: SortBy,
 }
 
-impl FromStr for Sort {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (field, sort_by) = s
+impl Sort {
+    pub fn new(str: &str, fields: &HashSet<&str>) -> Result<Self, ParseError> {
+        let (field, sort_by) = str
             .split_once("-")
             .map(|(f, s)| (f.to_owned(), s))
             .ok_or_else(|| ParseError::InvalidSort)?;
+
+        if !fields.contains(field.as_str()) {
+            Err(ParseError::InvalidField)?
+        }
+
         let sort_by = SortBy::from_str(sort_by)?;
 
         Ok(Sort { field, sort_by })
     }
-}
 
-impl Sort {
     pub fn to_string(&self) -> String {
         let mut sort = String::new();
         sort.push_str(&self.field);

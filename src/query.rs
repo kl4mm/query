@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::collections::{BTreeMap, HashSet};
 
 use crate::{filter::Filter, sort::Sort, ParseError};
 
@@ -10,10 +10,8 @@ pub struct Query {
     pub limit_offset: (Option<String>, Option<String>),
 }
 
-impl FromStr for Query {
-    type Err = ParseError;
-
-    fn from_str(str: &str) -> Result<Self, Self::Err> {
+impl Query {
+    pub fn new(str: &str, fields: &HashSet<&str>) -> Result<Self, ParseError> {
         let mut query: BTreeMap<String, String> = BTreeMap::new();
 
         let queries: Vec<&str> = str.split("&").collect();
@@ -28,12 +26,12 @@ impl FromStr for Query {
             };
 
             if k == "filter[]" {
-                filters.push(v.parse()?);
+                filters.push(Filter::new(v, fields)?);
                 continue;
             }
 
             if k == "sort" {
-                sort = Some(v.parse()?);
+                sort = Some(Sort::new(v, fields)?);
                 continue;
             }
 
@@ -90,19 +88,20 @@ impl Query {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashSet};
 
     use crate::{
         filter::{Condition, Filter},
         query::Query,
         sort::{Sort, SortBy},
+        ParseError,
     };
 
     #[test]
     fn test_parse_query() {
         let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed: Query = query.parse().unwrap();
+        let parsed = Query::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
 
         let mut query: BTreeMap<String, String> = BTreeMap::new();
         query.insert("userId".into(), "bob".into());
@@ -135,7 +134,7 @@ mod tests {
     fn test_parse_query_empty() {
         let query = "";
 
-        let parsed: Query = query.parse().unwrap();
+        let parsed = Query::new(query, &HashSet::from([])).unwrap();
 
         let expected = Query {
             query: BTreeMap::default(),
@@ -151,7 +150,7 @@ mod tests {
     fn test_parse_query_limit_offset() {
         let query = "limit=10&offset=0";
 
-        let parsed: Query = query.parse().unwrap();
+        let parsed = Query::new(query, &HashSet::from([])).unwrap();
 
         let expected = Query {
             query: BTreeMap::default(),
@@ -168,12 +167,21 @@ mod tests {
     fn test_is_valid() {
         let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed: Query = query.parse().unwrap();
+        let parsed = Query::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
 
         let v1 = parsed.check_valid(vec!["userId"]);
         assert!(v1.is_ok());
 
         let v1 = parsed.check_valid(vec!["userId", "limit", "offset"]);
         assert!(v1.is_err());
+    }
+
+    #[test]
+    fn test_invalid_field() {
+        let query = "userId=bob&filter[]=orderId-eq-1";
+
+        let result = Query::new(query, &HashSet::from(["userId"]));
+
+        assert_eq!(result, Err(ParseError::InvalidField))
     }
 }

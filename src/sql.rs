@@ -9,11 +9,12 @@ use crate::query::Query;
 /// # Examples
 ///
 /// ```
-/// use query::sql::gen_psql;
+/// use std::collections::HashSet;
+/// use query::{query::Query, sql::gen_psql};
 ///
 /// let query = "userId=123&userName=bob";
 ///
-/// let parsed = query.parse().unwrap();
+/// let parsed = Query::new(query, &HashSet::from(["userId", "userName"])).unwrap();
 ///
 /// let (sql, params) = gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 ///
@@ -106,7 +107,7 @@ pub fn gen_psql<'a>(
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
+    use std::collections::HashSet;
 
     use crate::query::Query;
 
@@ -114,7 +115,7 @@ mod test {
     fn test_gen_sql_no_filters_or_sort() {
         let query = "userId=123&userName=bob";
 
-        let parsed = Query::from_str(query).unwrap();
+        let parsed = Query::new(query, &HashSet::from(["userId", "userName"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -128,7 +129,7 @@ mod test {
     fn test_gen_sql_no_sort() {
         let query = "userId=123&userName=bob&filter[]=orderId-eq-1";
 
-        let parsed = Query::from_str(query).unwrap();
+        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -144,7 +145,11 @@ mod test {
         let query =
             "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed = Query::from_str(query).unwrap();
+        let parsed = Query::new(
+            query,
+            &HashSet::from(["userId", "userName", "orderId", "price"]),
+        )
+        .unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -158,7 +163,7 @@ mod test {
     fn test_gen_sql_limit_offset() {
         let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
 
-        let parsed = Query::from_str(query).unwrap();
+        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -173,7 +178,7 @@ mod test {
     fn test_gen_sql_limit_offset_bind() {
         let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
 
-        let parsed = Query::from_str(query).unwrap();
+        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -188,7 +193,7 @@ mod test {
     fn test_gen_sql_ordering() {
         let query = "limit=10&offset=0&filter[]=orderId-eq-1&userId=123&userName=bob";
 
-        let parsed = Query::from_str(query).unwrap();
+        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -203,7 +208,11 @@ mod test {
         let query =
             "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed = Query::from_str(query).unwrap();
+        let parsed = Query::new(
+            query,
+            &HashSet::from(["userId", "userName", "orderId", "price"]),
+        )
+        .unwrap();
 
         let (sql, params) = super::gen_psql(
             &parsed,
