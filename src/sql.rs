@@ -24,16 +24,15 @@ use crate::query::Query;
 pub fn gen_psql<'a>(
     input: &'a Query,
     table: &str,
-    fields: Vec<&str>,
+    columns: Vec<&str>,
     joins: Vec<&str>,
 ) -> (String, BTreeMap<&'a str, &'a str>) {
     let mut params: BTreeMap<&str, &str> = BTreeMap::new();
 
     // Fields:
-    // TODO: empty = *
-    let fields = fields.join(", ");
+    let columns = columns.join(", ");
     let mut sql = String::from("SELECT ");
-    sql.push_str(&fields);
+    sql.push_str(&columns);
     sql.push_str(" FROM ");
     sql.push_str(table);
 
