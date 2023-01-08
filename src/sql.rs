@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use convert_case::{Case, Casing};
 
 use crate::query::Query;
@@ -23,8 +25,8 @@ pub fn gen_psql<'a>(
     table: &str,
     fields: Vec<&str>,
     joins: Vec<&str>,
-) -> (String, Vec<&'a str>) {
-    let mut params: Vec<&str> = Vec::new();
+) -> (String, BTreeMap<&'a str, &'a str>) {
+    let mut params: BTreeMap<&str, &str> = BTreeMap::new();
 
     // Fields:
     // TODO: empty = *
@@ -50,7 +52,7 @@ pub fn gen_psql<'a>(
         query.push_str(&(params.len() + 1).to_string());
 
         queryv.push(query);
-        params.push(input.query.get(key).unwrap())
+        params.insert(key, input.query.get(key).unwrap());
     }
     let query = queryv.join(" AND ");
 
@@ -58,7 +60,7 @@ pub fn gen_psql<'a>(
     let mut filterv = Vec::new();
     for filter in input.filters.iter() {
         filterv.push(filter.to_camel_psql_string(params.len() + 1));
-        params.push(&filter.value)
+        params.insert(&filter.field, &filter.value);
     }
     let filter = filterv.join(" AND ");
 
@@ -80,15 +82,24 @@ pub fn gen_psql<'a>(
     // Limit & offset:
     if let Ok((limit, offset)) = input.check_limit_and_offset() {
         sql.push_str(" LIMIT ");
-        sql.push_str("$");
-        sql.push_str(&(params.len() + 1).to_string());
-        params.push(limit);
+        sql.push_str(limit);
 
         sql.push_str(" OFFSET ");
-        sql.push_str("$");
-        sql.push_str(&(params.len() + 1).to_string());
-        params.push(offset);
+        sql.push_str(offset);
     }
+
+    // Doesn't work when using bind() for some reason..
+    // if let Ok((limit, offset)) = input.check_limit_and_offset() {
+    //     sql.push_str(" LIMIT ");
+    //     sql.push_str("$");
+    //     sql.push_str(&(params.len() + 1).to_string());
+    //     params.insert("limit", limit);
+
+    //     sql.push_str(" OFFSET ");
+    //     sql.push_str("$");
+    //     sql.push_str(&(params.len() + 1).to_string());
+    //     params.insert("offset", offset);
+    // }
 
     (sql, params)
 }
@@ -145,6 +156,21 @@ mod test {
 
     #[test]
     fn test_gen_sql_limit_offset() {
+        let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
+
+        let parsed = Query::from_str(query).unwrap();
+
+        let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
+
+        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 LIMIT 10 OFFSET 0";
+
+        assert_eq!(sql, expected);
+        assert_eq!(params.len(), 3);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_gen_sql_limit_offset_bind() {
         let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
 
         let parsed = Query::from_str(query).unwrap();
