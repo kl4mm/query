@@ -23,8 +23,8 @@ pub fn gen_psql<'a>(
     table: &str,
     fields: Vec<&str>,
     joins: Vec<&str>,
-) -> (String, Vec<&'a String>) {
-    let mut params = Vec::new();
+) -> (String, Vec<&'a str>) {
+    let mut params: Vec<&str> = Vec::new();
 
     // Fields:
     // TODO: empty = *
@@ -40,18 +40,14 @@ pub fn gen_psql<'a>(
         sql.push_str(join)
     }
 
-    let mut param_count = 0;
-
     // Required fields from the query:
     let mut queryv = Vec::new();
-    for (i, key) in input.query.keys().enumerate() {
+    for key in input.query.keys() {
         let mut query = String::new();
         query.push_str(&key.to_case(Case::Snake));
         query.push_str(" = ");
         query.push_str("$");
-        let i = i + 1;
-        param_count += 1;
-        query.push_str(&i.to_string());
+        query.push_str(&(params.len() + 1).to_string());
 
         queryv.push(query);
         params.push(input.query.get(key).unwrap())
@@ -60,15 +56,14 @@ pub fn gen_psql<'a>(
 
     // Filters:
     let mut filterv = Vec::new();
-    for (i, filter) in input.filters.iter().enumerate() {
-        filterv.push(filter.to_camel_psql_string(param_count + i + 1));
+    for filter in input.filters.iter() {
+        filterv.push(filter.to_camel_psql_string(params.len() + 1));
         params.push(&filter.value)
     }
     let filter = filterv.join(" AND ");
 
     if queryv.len() > 0 {
         sql.push_str(" WHERE ");
-        dbg!(&query);
         sql.push_str(&query);
         if filterv.len() > 0 {
             sql.push_str(" AND ");
@@ -80,6 +75,19 @@ pub fn gen_psql<'a>(
     if let Some(ref sort) = input.sort {
         sql.push_str(" ORDER BY ");
         sql.push_str(&sort.to_camel_string());
+    }
+
+    // Limit & offset:
+    if let Ok((limit, offset)) = input.check_limit_and_offset() {
+        sql.push_str(" LIMIT ");
+        sql.push_str("$");
+        sql.push_str(&(params.len() + 1).to_string());
+        params.push(limit);
+
+        sql.push_str(" OFFSET ");
+        sql.push_str("$");
+        sql.push_str(&(params.len() + 1).to_string());
+        params.push(offset);
     }
 
     (sql, params)
@@ -133,6 +141,35 @@ mod test {
 
         assert_eq!(sql, expected);
         assert_eq!(params.len(), 4);
+    }
+
+    #[test]
+    fn test_gen_sql_limit_offset() {
+        let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
+
+        let parsed = Query::from_str(query).unwrap();
+
+        let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
+
+        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 LIMIT $4 OFFSET $5";
+
+        assert_eq!(sql, expected);
+        assert_eq!(params.len(), 5);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_gen_sql_ordering() {
+        let query = "limit=10&offset=0&filter[]=orderId-eq-1&userId=123&userName=bob";
+
+        let parsed = Query::from_str(query).unwrap();
+
+        let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
+
+        let expected = "SELECT id, status FROM orders WHERE order_id = $1 AND user_id = $2 AND user_name = $3 LIMIT $4 OFFSET $5";
+
+        assert_eq!(sql, expected);
+        assert_eq!(params.len(), 5);
     }
 
     #[test]

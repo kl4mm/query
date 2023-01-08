@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-    str::FromStr,
-};
+use std::{collections::BTreeMap, str::FromStr};
 
 use crate::{filter::Filter, sort::Sort, ParseError};
 
@@ -10,6 +7,7 @@ pub struct Query {
     pub query: BTreeMap<String, String>,
     pub filters: Vec<Filter>,
     pub sort: Option<Sort>,
+    pub limit_offset: (Option<String>, Option<String>),
 }
 
 impl FromStr for Query {
@@ -21,6 +19,7 @@ impl FromStr for Query {
         let queries: Vec<&str> = str.split("&").collect();
         let mut filters = Vec::new();
         let mut sort = None;
+        let mut limit_offset = (None, None);
 
         for q in queries {
             let (k, v) = match q.split_once("=") {
@@ -38,6 +37,16 @@ impl FromStr for Query {
                 continue;
             }
 
+            if k == "limit" {
+                limit_offset.0 = Some(v.to_owned());
+                continue;
+            }
+
+            if k == "offset" {
+                limit_offset.1 = Some(v.to_owned());
+                continue;
+            }
+
             query.insert(k.into(), v.into());
         }
 
@@ -45,12 +54,13 @@ impl FromStr for Query {
             query,
             filters,
             sort,
+            limit_offset,
         })
     }
 }
 
 impl Query {
-    pub fn is_valid(&self, required: Vec<&str>) -> Result<(), String> {
+    pub fn check_valid(&self, required: Vec<&str>) -> Result<(), String> {
         for r in required {
             if let None = self.query.get(r) {
                 let mut res = String::new();
@@ -62,15 +72,31 @@ impl Query {
 
         Ok(())
     }
+
+    pub fn check_limit_and_offset(&self) -> Result<(&str, &str), String> {
+        if let None = self.limit_offset.0 {
+            Err(String::from("limit is required"))?;
+        };
+        if let None = self.limit_offset.1 {
+            Err(String::from("offset is required"))?;
+        };
+
+        Ok((
+            self.limit_offset.0.as_ref().unwrap(),
+            self.limit_offset.1.as_ref().unwrap(),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::{filter::Condition, sort::SortBy};
-
-    use super::*;
+    use crate::{
+        filter::{Condition, Filter},
+        query::Query,
+        sort::{Sort, SortBy},
+    };
 
     #[test]
     fn test_parse_query() {
@@ -99,6 +125,7 @@ mod tests {
                 field: String::from("price"),
                 sort_by: SortBy::DESC,
             }),
+            limit_offset: (None, None),
         };
 
         assert_eq!(parsed, expected);
@@ -114,9 +141,27 @@ mod tests {
             query: BTreeMap::default(),
             filters: vec![],
             sort: None,
+            limit_offset: (None, None),
         };
 
         assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn test_parse_query_limit_offset() {
+        let query = "limit=10&offset=0";
+
+        let parsed: Query = query.parse().unwrap();
+
+        let expected = Query {
+            query: BTreeMap::default(),
+            filters: vec![],
+            sort: None,
+            limit_offset: (Some("10".into()), Some("0".into())),
+        };
+
+        assert_eq!(parsed, expected);
+        assert!(parsed.check_limit_and_offset().is_ok());
     }
 
     #[test]
@@ -125,10 +170,10 @@ mod tests {
 
         let parsed: Query = query.parse().unwrap();
 
-        let v1 = parsed.is_valid(vec!["userId"]);
+        let v1 = parsed.check_valid(vec!["userId"]);
         assert!(v1.is_ok());
 
-        let v1 = parsed.is_valid(vec!["userId", "limit", "offset"]);
+        let v1 = parsed.check_valid(vec!["userId", "limit", "offset"]);
         assert!(v1.is_err());
     }
 }
