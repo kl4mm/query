@@ -105,6 +105,21 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_query_empty() {
+        let query = "";
+
+        let parsed: Query = query.parse().unwrap();
+
+        let expected = Query {
+            query: BTreeMap::default(),
+            filters: vec![],
+            sort: None,
+        };
+
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
     fn test_is_valid() {
         let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
