@@ -64,13 +64,19 @@ pub fn gen_psql<'a>(
     }
     let filter = filterv.join(" AND ");
 
-    if queryv.len() > 0 {
+    let has_query = queryv.len() > 0;
+    let has_filter = filterv.len() > 0;
+    if has_query {
         sql.push_str(" WHERE ");
         sql.push_str(&query);
-        if filterv.len() > 0 {
-            sql.push_str(" AND ");
-            sql.push_str(&filter);
-        }
+    }
+
+    if has_filter && !has_query {
+        sql.push_str(" WHERE ");
+        sql.push_str(&filter);
+    } else if has_filter {
+        sql.push_str(" AND ");
+        sql.push_str(&filter);
     }
 
     // Sort:
@@ -87,19 +93,6 @@ pub fn gen_psql<'a>(
         sql.push_str(" OFFSET ");
         sql.push_str(offset);
     }
-
-    // Doesn't work when using bind() for some reason..
-    // if let Ok((limit, offset)) = input.check_limit_and_offset() {
-    //     sql.push_str(" LIMIT ");
-    //     sql.push_str("$");
-    //     sql.push_str(&(params.len() + 1).to_string());
-    //     params.insert("limit", limit);
-
-    //     sql.push_str(" OFFSET ");
-    //     sql.push_str("$");
-    //     sql.push_str(&(params.len() + 1).to_string());
-    //     params.insert("offset", offset);
-    // }
 
     (sql, params)
 }
@@ -174,21 +167,6 @@ mod test {
 
     #[test]
     #[ignore]
-    fn test_gen_sql_limit_offset_bind() {
-        let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
-
-        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
-
-        let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
-
-        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 LIMIT $4 OFFSET $5";
-
-        assert_eq!(sql, expected);
-        assert_eq!(params.len(), 5);
-    }
-
-    #[test]
-    #[ignore]
     fn test_gen_sql_ordering() {
         let query = "limit=10&offset=0&filter[]=orderId-eq-1&userId=123&userName=bob";
 
@@ -196,10 +174,25 @@ mod test {
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
-        let expected = "SELECT id, status FROM orders WHERE order_id = $1 AND user_id = $2 AND user_name = $3 LIMIT $4 OFFSET $5";
+        let expected = "SELECT id, status FROM orders WHERE order_id = $1 AND user_id = $2 AND user_name = $3 LIMIT 10 OFFSET 0";
 
         assert_eq!(sql, expected);
         assert_eq!(params.len(), 5);
+    }
+
+    #[test]
+    fn test_gen_sql_no_params() {
+        let query = "limit=10&offset=0&filter[]=orderId-eq-1&filter[]=userId-eq-1";
+
+        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
+
+        let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
+
+        let expected =
+            "SELECT id, status FROM orders WHERE order_id = $1 AND user_id = $2 LIMIT 10 OFFSET 0";
+
+        assert_eq!(sql, expected);
+        assert_eq!(params.len(), 2);
     }
 
     #[test]
