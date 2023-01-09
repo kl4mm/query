@@ -64,6 +64,7 @@ pub fn gen_psql<'a>(
     }
     let filter = filterv.join(" AND ");
 
+    // WHERE clause
     let has_query = queryv.len() > 0;
     let has_filter = filterv.len() > 0;
     if has_query {
