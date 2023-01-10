@@ -6,6 +6,7 @@ use crate::{filter::Filter, sort::Sort, ParseError};
 pub struct Query {
     pub query: BTreeMap<String, String>,
     pub filters: Vec<Filter>,
+    pub group: Option<String>,
     pub sort: Option<Sort>,
     pub limit_offset: (Option<String>, Option<String>),
 }
@@ -16,6 +17,7 @@ impl Query {
 
         let queries: Vec<&str> = str.split("&").collect();
         let mut filters = Vec::new();
+        let mut group = None;
         let mut sort = None;
         let mut limit_offset = (None, None);
 
@@ -27,6 +29,11 @@ impl Query {
 
             if k == "filter[]" {
                 filters.push(Filter::new(v, fields)?);
+                continue;
+            }
+
+            if k == "group" {
+                group = Some(v.to_owned());
                 continue;
             }
 
@@ -51,6 +58,7 @@ impl Query {
         Ok(Self {
             query,
             filters,
+            group,
             sort,
             limit_offset,
         })
@@ -120,6 +128,7 @@ mod tests {
                     value: "200".into(),
                 },
             ],
+            group: None,
             sort: Some(Sort {
                 field: String::from("price"),
                 sort_by: SortBy::DESC,
@@ -139,6 +148,7 @@ mod tests {
         let expected = Query {
             query: BTreeMap::default(),
             filters: vec![],
+            group: None,
             sort: None,
             limit_offset: (None, None),
         };
@@ -155,6 +165,7 @@ mod tests {
         let expected = Query {
             query: BTreeMap::default(),
             filters: vec![],
+            group: None,
             sort: None,
             limit_offset: (Some("10".into()), Some("0".into())),
         };

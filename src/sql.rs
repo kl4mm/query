@@ -80,6 +80,12 @@ pub fn gen_psql<'a>(
         sql.push_str(&filter);
     }
 
+    // Group:
+    if let Some(ref group) = input.group {
+        sql.push_str(" GROUP BY ");
+        sql.push_str(&group.to_case(Case::Camel))
+    }
+
     // Sort:
     if let Some(ref sort) = input.sort {
         sql.push_str(" ORDER BY ");
@@ -218,5 +224,24 @@ mod test {
 
         assert_eq!(sql, expected);
         assert_eq!(params.len(), 4);
+    }
+
+    #[test]
+    fn test_gen_sql_group() {
+        let query = "userId=123&userName=bob&filter[]=orderId-eq-1&group=id";
+
+        let parsed = Query::new(
+            query,
+            &HashSet::from(["userId", "userName", "orderId", "price"]),
+        )
+        .unwrap();
+
+        let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
+
+        let expected =
+            "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 GROUP BY id";
+
+        assert_eq!(sql, expected);
+        assert_eq!(params.len(), 3);
     }
 }
