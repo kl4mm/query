@@ -1,10 +1,14 @@
 use std::collections::{BTreeMap, HashSet};
 
-use crate::{filter::Filter, sort::Sort, ParseError};
+use crate::{
+    filter::{Condition, Filter},
+    sort::Sort,
+    ParseError,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct UrlQuery {
-    pub query: BTreeMap<String, String>,
+    pub params: HashSet<String>,
     pub filters: Vec<Filter>,
     pub group: Option<String>,
     pub sort: Option<Sort>,
@@ -13,7 +17,7 @@ pub struct UrlQuery {
 
 impl UrlQuery {
     pub fn new(str: &str, fields: &HashSet<&str>) -> Result<Self, ParseError> {
-        let mut query: BTreeMap<String, String> = BTreeMap::new();
+        let mut params = HashSet::new();
 
         let queries: Vec<&str> = str.split("&").collect();
         let mut filters = Vec::new();
@@ -52,11 +56,14 @@ impl UrlQuery {
                 continue;
             }
 
-            query.insert(k.into(), v.into());
+            // To check required:
+            params.insert(k.into());
+
+            filters.push(Filter::from_key_value(k, v, Condition::EQ));
         }
 
         Ok(Self {
-            query,
+            params,
             filters,
             group,
             sort,
@@ -68,7 +75,7 @@ impl UrlQuery {
 impl UrlQuery {
     pub fn check_valid(&self, required: Vec<&str>) -> Result<(), String> {
         for r in required {
-            if let None = self.query.get(r) {
+            if let None = self.params.get(r) {
                 let mut res = String::new();
                 res.push_str(r);
                 res.push_str(" is required");
@@ -110,12 +117,17 @@ mod tests {
 
         let parsed = UrlQuery::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
 
-        let mut query: BTreeMap<String, String> = BTreeMap::new();
-        query.insert("userId".into(), "bob".into());
+        let mut params = HashSet::new();
+        params.insert("userId".to_owned());
 
         let expected = UrlQuery {
-            query,
+            params,
             filters: vec![
+                Filter {
+                    field: "userId".into(),
+                    condition: Condition::EQ,
+                    value: "bob".into(),
+                },
                 Filter {
                     field: "orderId".into(),
                     condition: Condition::EQ,
@@ -145,7 +157,7 @@ mod tests {
         let parsed = UrlQuery::new(query, &HashSet::from([])).unwrap();
 
         let expected = UrlQuery {
-            query: BTreeMap::default(),
+            params: HashSet::default(),
             filters: vec![],
             group: None,
             sort: None,
@@ -162,7 +174,7 @@ mod tests {
         let parsed = UrlQuery::new(query, &HashSet::from([])).unwrap();
 
         let expected = UrlQuery {
-            query: BTreeMap::default(),
+            params: HashSet::default(),
             filters: vec![],
             group: None,
             sort: None,

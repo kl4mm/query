@@ -71,6 +71,14 @@ impl Filter {
         })
     }
 
+    pub fn from_key_value(key: &str, value: &str, condition: Condition) -> Self {
+        Self {
+            field: key.into(),
+            condition,
+            value: value.into(),
+        }
+    }
+
     pub fn to_string(&self) -> String {
         let mut res = String::new();
         res.push_str(&self.field);

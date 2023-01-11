@@ -28,13 +28,13 @@ pub fn gen_psql<'a>(
     joins: Vec<&str>,
 ) -> (String, BTreeMap<&'a str, &'a str>) {
     // Fields:
-    let mut sql = start_sql(table, columns);
+    let mut sql = gen_sql_select(table, columns);
 
     // Joins:
     append_joins(&mut sql, joins);
 
     // WHERE clause, returns bind args
-    let args = append_where(&mut sql, &input.query, &input.filters);
+    let args = append_where(&mut sql, &input.filters);
 
     // Group:
     if let Some(ref group) = input.group {
@@ -54,7 +54,7 @@ pub fn gen_psql<'a>(
     (sql, args)
 }
 
-fn start_sql(table: &str, columns: Vec<&str>) -> String {
+fn gen_sql_select(table: &str, columns: Vec<&str>) -> String {
     let mut sql = String::from("SELECT ");
     let columns = columns.join(", ");
     sql.push_str(&columns);
@@ -70,26 +70,8 @@ fn append_joins(sql: &mut String, joins: Vec<&str>) {
     }
 }
 
-fn append_where<'a>(
-    sql: &mut String,
-    params: &'a BTreeMap<String, String>,
-    filters: &'a Vec<Filter>,
-) -> BTreeMap<&'a str, &'a str> {
+fn append_where<'a>(sql: &mut String, filters: &'a Vec<Filter>) -> BTreeMap<&'a str, &'a str> {
     let mut args: BTreeMap<&str, &str> = BTreeMap::new();
-
-    // Required fields from the query:
-    let mut queryv = Vec::new();
-    for key in params.keys() {
-        let mut query = String::new();
-        query.push_str(&key.to_case(Case::Snake));
-        query.push_str(" = ");
-        query.push_str("$");
-        query.push_str(&(args.len() + 1).to_string());
-
-        queryv.push(query);
-        args.insert(key, params.get(key).unwrap());
-    }
-    let query = queryv.join(" AND ");
 
     // Filters:
     let mut filterv = Vec::new();
@@ -100,18 +82,8 @@ fn append_where<'a>(
     let filter = filterv.join(" AND ");
 
     // WHERE clause
-    let has_query = queryv.len() > 0;
-    let has_filter = filterv.len() > 0;
-    if has_query {
+    if filterv.len() > 0 {
         sql.push_str(" WHERE ");
-        sql.push_str(&query);
-    }
-
-    if has_filter && !has_query {
-        sql.push_str(" WHERE ");
-        sql.push_str(&filter);
-    } else if has_filter {
-        sql.push_str(" AND ");
         sql.push_str(&filter);
     }
 
