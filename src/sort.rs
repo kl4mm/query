@@ -12,13 +12,13 @@ pub struct Sort {
 }
 
 impl Sort {
-    pub fn new(str: &str, fields: &HashSet<&str>) -> Result<Self, ParseError> {
+    pub fn new(str: &str, allowed_fields: &HashSet<&str>) -> Result<Self, ParseError> {
         let (field, sort_by) = str
             .split_once("-")
             .map(|(f, s)| (f.to_owned(), s))
             .ok_or_else(|| ParseError::InvalidSort)?;
 
-        if !fields.contains(field.as_str()) {
+        if !allowed_fields.contains(field.as_str()) {
             Err(ParseError::InvalidField)?
         }
 

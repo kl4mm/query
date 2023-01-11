@@ -52,13 +52,13 @@ pub struct Filter {
 }
 
 impl Filter {
-    pub fn new(str: &str, fields: &HashSet<&str>) -> Result<Self, ParseError> {
+    pub fn new(str: &str, allowed_fields: &HashSet<&str>) -> Result<Self, ParseError> {
         let split: Vec<&str> = str.split('-').collect();
         if split.len() != 3 {
             Err(ParseError::InvalidFilter)?
         }
 
-        if !fields.contains(split[0]) {
+        if !allowed_fields.contains(split[0]) {
             Err(ParseError::InvalidField)?
         }
 

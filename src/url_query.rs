@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use crate::{
     filter::{Condition, Filter},
@@ -16,7 +16,7 @@ pub struct UrlQuery {
 }
 
 impl UrlQuery {
-    pub fn new(str: &str, fields: &HashSet<&str>) -> Result<Self, ParseError> {
+    pub fn new(str: &str, allowed_fields: &HashSet<&str>) -> Result<Self, ParseError> {
         let mut params = HashSet::new();
 
         let queries: Vec<&str> = str.split("&").collect();
@@ -32,7 +32,7 @@ impl UrlQuery {
             };
 
             if k == "filter[]" {
-                filters.push(Filter::new(v, fields)?);
+                filters.push(Filter::new(v, allowed_fields)?);
                 continue;
             }
 
@@ -42,7 +42,7 @@ impl UrlQuery {
             }
 
             if k == "sort" {
-                sort = Some(Sort::new(v, fields)?);
+                sort = Some(Sort::new(v, allowed_fields)?);
                 continue;
             }
 
@@ -103,7 +103,7 @@ impl UrlQuery {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, HashSet};
+    use std::collections::HashSet;
 
     use crate::{
         filter::{Condition, Filter},
@@ -113,9 +113,11 @@ mod tests {
 
     #[test]
     fn test_parse_query() {
-        let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
+        let query =
+            "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&group=orderId";
 
-        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
+        let allowed = HashSet::from(["userId", "orderId", "price"]);
+        let parsed = UrlQuery::new(query, &allowed).unwrap();
 
         let mut params = HashSet::new();
         params.insert("userId".to_owned());
@@ -139,7 +141,7 @@ mod tests {
                     value: "200".into(),
                 },
             ],
-            group: None,
+            group: Some(String::from("orderId")),
             sort: Some(Sort {
                 field: String::from("price"),
                 sort_by: SortBy::DESC,
@@ -199,10 +201,11 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_field() {
+    fn test_allowed_field() {
         let query = "userId=bob&filter[]=orderId-eq-1";
 
-        let result = UrlQuery::new(query, &HashSet::from(["userId"]));
+        let allowed = HashSet::from(["userId"]);
+        let result = UrlQuery::new(query, &allowed);
 
         assert_eq!(result, Err(ParseError::InvalidField))
     }
