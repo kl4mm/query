@@ -73,7 +73,7 @@ impl UrlQuery {
 }
 
 impl UrlQuery {
-    pub fn check_valid(&self, required: Vec<&str>) -> Result<(), String> {
+    pub fn check_required(&self, required: Vec<&str>) -> Result<(), String> {
         for r in required {
             if let None = self.params.get(r) {
                 let mut res = String::new();
@@ -193,10 +193,10 @@ mod tests {
 
         let parsed = UrlQuery::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
 
-        let v1 = parsed.check_valid(vec!["userId"]);
+        let v1 = parsed.check_required(vec!["userId"]);
         assert!(v1.is_ok());
 
-        let v1 = parsed.check_valid(vec!["userId", "limit", "offset"]);
+        let v1 = parsed.check_required(vec!["userId", "limit", "offset"]);
         assert!(v1.is_err());
     }
 
