@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use convert_case::{Case, Casing};
 
-use crate::UrlQuery;
+use crate::{filter::Filter, sort::Sort, UrlQuery};
 
 /// Generates SQL statement with params.
 ///
@@ -27,40 +27,75 @@ pub fn gen_psql<'a>(
     columns: Vec<&str>,
     joins: Vec<&str>,
 ) -> (String, BTreeMap<&'a str, &'a str>) {
-    let mut params: BTreeMap<&str, &str> = BTreeMap::new();
-
     // Fields:
-    let columns = columns.join(", ");
+    let mut sql = start_sql(table, columns);
+
+    // Joins:
+    append_joins(&mut sql, joins);
+
+    // WHERE clause, returns bind args
+    let args = append_where(&mut sql, &input.query, &input.filters);
+
+    // Group:
+    if let Some(ref group) = input.group {
+        append_group(&mut sql, group);
+    }
+
+    // Sort:
+    if let Some(ref sort) = input.sort {
+        append_sort(&mut sql, sort);
+    }
+
+    // Limit & offset:
+    if let Ok((limit, offset)) = input.check_limit_and_offset() {
+        append_limit_offset(&mut sql, limit, offset);
+    }
+
+    (sql, args)
+}
+
+fn start_sql(table: &str, columns: Vec<&str>) -> String {
     let mut sql = String::from("SELECT ");
+    let columns = columns.join(", ");
     sql.push_str(&columns);
     sql.push_str(" FROM ");
     sql.push_str(table);
+    sql
+}
 
-    // Joins:
+fn append_joins(sql: &mut String, joins: Vec<&str>) {
     for join in joins {
         sql.push_str(" ");
         sql.push_str(join)
     }
+}
+
+fn append_where<'a>(
+    sql: &mut String,
+    params: &'a BTreeMap<String, String>,
+    filters: &'a Vec<Filter>,
+) -> BTreeMap<&'a str, &'a str> {
+    let mut args: BTreeMap<&str, &str> = BTreeMap::new();
 
     // Required fields from the query:
     let mut queryv = Vec::new();
-    for key in input.query.keys() {
+    for key in params.keys() {
         let mut query = String::new();
         query.push_str(&key.to_case(Case::Snake));
         query.push_str(" = ");
         query.push_str("$");
-        query.push_str(&(params.len() + 1).to_string());
+        query.push_str(&(args.len() + 1).to_string());
 
         queryv.push(query);
-        params.insert(key, input.query.get(key).unwrap());
+        args.insert(key, params.get(key).unwrap());
     }
     let query = queryv.join(" AND ");
 
     // Filters:
     let mut filterv = Vec::new();
-    for filter in input.filters.iter() {
-        filterv.push(filter.to_camel_psql_string(params.len() + 1));
-        params.insert(&filter.field, &filter.value);
+    for filter in filters.iter() {
+        filterv.push(filter.to_camel_psql_string(args.len() + 1));
+        args.insert(&filter.field, &filter.value);
     }
     let filter = filterv.join(" AND ");
 
@@ -80,28 +115,25 @@ pub fn gen_psql<'a>(
         sql.push_str(&filter);
     }
 
-    // Group:
-    if let Some(ref group) = input.group {
-        sql.push_str(" GROUP BY ");
-        sql.push_str(&group.to_case(Case::Camel))
-    }
+    args
+}
 
-    // Sort:
-    if let Some(ref sort) = input.sort {
-        sql.push_str(" ORDER BY ");
-        sql.push_str(&sort.to_camel_string());
-    }
+fn append_group(sql: &mut String, group: &str) {
+    sql.push_str(" GROUP BY ");
+    sql.push_str(&group.to_case(Case::Camel))
+}
 
-    // Limit & offset:
-    if let Ok((limit, offset)) = input.check_limit_and_offset() {
-        sql.push_str(" LIMIT ");
-        sql.push_str(limit);
+fn append_sort(sql: &mut String, sort: &Sort) {
+    sql.push_str(" ORDER BY ");
+    sql.push_str(&sort.to_camel_string());
+}
 
-        sql.push_str(" OFFSET ");
-        sql.push_str(offset);
-    }
+fn append_limit_offset(sql: &mut String, limit: &str, offset: &str) {
+    sql.push_str(" LIMIT ");
+    sql.push_str(limit);
 
-    (sql, params)
+    sql.push_str(" OFFSET ");
+    sql.push_str(offset);
 }
 
 #[cfg(test)]
