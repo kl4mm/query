@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use convert_case::{Case, Casing};
 
-use crate::query::Query;
+use crate::UrlQuery;
 
 /// Generates SQL statement with params.
 ///
@@ -10,19 +10,19 @@ use crate::query::Query;
 ///
 /// ```
 /// use std::collections::HashSet;
-/// use query::{query::Query, sql::gen_psql};
+/// use query::{UrlQuery, sql};
 ///
 /// let query = "userId=123&userName=bob";
 ///
-/// let parsed = Query::new(query, &HashSet::from(["userId", "userName"])).unwrap();
+/// let parsed = UrlQuery::new(query, &HashSet::from(["userId", "userName"])).unwrap();
 ///
-/// let (sql, params) = gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
+/// let (sql, params) = sql::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 ///
 /// assert_eq!(sql, "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2");
 /// assert_eq!(params.len(), 2);
 /// ```
 pub fn gen_psql<'a>(
-    input: &'a Query,
+    input: &'a UrlQuery,
     table: &str,
     columns: Vec<&str>,
     joins: Vec<&str>,
@@ -108,13 +108,13 @@ pub fn gen_psql<'a>(
 mod test {
     use std::collections::HashSet;
 
-    use crate::query::Query;
+    use crate::UrlQuery;
 
     #[test]
     fn test_gen_sql_no_filters_or_sort() {
         let query = "userId=123&userName=bob";
 
-        let parsed = Query::new(query, &HashSet::from(["userId", "userName"])).unwrap();
+        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "userName"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -128,7 +128,8 @@ mod test {
     fn test_gen_sql_no_sort() {
         let query = "userId=123&userName=bob&filter[]=orderId-eq-1";
 
-        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
+        let parsed =
+            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -144,7 +145,7 @@ mod test {
         let query =
             "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed = Query::new(
+        let parsed = UrlQuery::new(
             query,
             &HashSet::from(["userId", "userName", "orderId", "price"]),
         )
@@ -162,7 +163,8 @@ mod test {
     fn test_gen_sql_limit_offset() {
         let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
 
-        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
+        let parsed =
+            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -177,7 +179,8 @@ mod test {
     fn test_gen_sql_ordering() {
         let query = "limit=10&offset=0&filter[]=orderId-eq-1&userId=123&userName=bob";
 
-        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
+        let parsed =
+            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -191,7 +194,8 @@ mod test {
     fn test_gen_sql_no_params() {
         let query = "limit=10&offset=0&filter[]=orderId-eq-1&filter[]=userId-eq-1";
 
-        let parsed = Query::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
+        let parsed =
+            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
 
         let (sql, params) = super::gen_psql(&parsed, "orders", vec!["id", "status"], vec![]);
 
@@ -207,7 +211,7 @@ mod test {
         let query =
             "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed = Query::new(
+        let parsed = UrlQuery::new(
             query,
             &HashSet::from(["userId", "userName", "orderId", "price"]),
         )
@@ -230,7 +234,7 @@ mod test {
     fn test_gen_sql_group() {
         let query = "userId=123&userName=bob&filter[]=orderId-eq-1&group=id";
 
-        let parsed = Query::new(
+        let parsed = UrlQuery::new(
             query,
             &HashSet::from(["userId", "userName", "orderId", "price"]),
         )

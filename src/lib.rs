@@ -1,7 +1,9 @@
 pub mod filter;
-pub mod query;
 pub mod sort;
 pub mod sql;
+pub mod url_query;
+
+pub use url_query::UrlQuery;
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError {

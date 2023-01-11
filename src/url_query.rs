@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashSet};
 use crate::{filter::Filter, sort::Sort, ParseError};
 
 #[derive(Debug, PartialEq)]
-pub struct Query {
+pub struct UrlQuery {
     pub query: BTreeMap<String, String>,
     pub filters: Vec<Filter>,
     pub group: Option<String>,
@@ -11,7 +11,7 @@ pub struct Query {
     pub limit_offset: (Option<String>, Option<String>),
 }
 
-impl Query {
+impl UrlQuery {
     pub fn new(str: &str, fields: &HashSet<&str>) -> Result<Self, ParseError> {
         let mut query: BTreeMap<String, String> = BTreeMap::new();
 
@@ -65,7 +65,7 @@ impl Query {
     }
 }
 
-impl Query {
+impl UrlQuery {
     pub fn check_valid(&self, required: Vec<&str>) -> Result<(), String> {
         for r in required {
             if let None = self.query.get(r) {
@@ -100,21 +100,20 @@ mod tests {
 
     use crate::{
         filter::{Condition, Filter},
-        query::Query,
         sort::{Sort, SortBy},
-        ParseError,
+        ParseError, UrlQuery,
     };
 
     #[test]
     fn test_parse_query() {
         let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed = Query::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
+        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
 
         let mut query: BTreeMap<String, String> = BTreeMap::new();
         query.insert("userId".into(), "bob".into());
 
-        let expected = Query {
+        let expected = UrlQuery {
             query,
             filters: vec![
                 Filter {
@@ -143,9 +142,9 @@ mod tests {
     fn test_parse_query_empty() {
         let query = "";
 
-        let parsed = Query::new(query, &HashSet::from([])).unwrap();
+        let parsed = UrlQuery::new(query, &HashSet::from([])).unwrap();
 
-        let expected = Query {
+        let expected = UrlQuery {
             query: BTreeMap::default(),
             filters: vec![],
             group: None,
@@ -160,9 +159,9 @@ mod tests {
     fn test_parse_query_limit_offset() {
         let query = "limit=10&offset=0";
 
-        let parsed = Query::new(query, &HashSet::from([])).unwrap();
+        let parsed = UrlQuery::new(query, &HashSet::from([])).unwrap();
 
-        let expected = Query {
+        let expected = UrlQuery {
             query: BTreeMap::default(),
             filters: vec![],
             group: None,
@@ -178,7 +177,7 @@ mod tests {
     fn test_is_valid() {
         let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed = Query::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
+        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
 
         let v1 = parsed.check_valid(vec!["userId"]);
         assert!(v1.is_ok());
@@ -191,7 +190,7 @@ mod tests {
     fn test_invalid_field() {
         let query = "userId=bob&filter[]=orderId-eq-1";
 
-        let result = Query::new(query, &HashSet::from(["userId"]));
+        let result = UrlQuery::new(query, &HashSet::from(["userId"]));
 
         assert_eq!(result, Err(ParseError::InvalidField))
     }
