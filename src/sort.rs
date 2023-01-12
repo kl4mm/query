@@ -36,8 +36,12 @@ impl Sort {
         sort
     }
 
-    pub fn to_camel_string(&self) -> String {
+    pub fn to_camel_string(&self, table: Option<&&str>) -> String {
         let mut sort = String::new();
+        if let Some(table) = table {
+            sort.push_str(table);
+            sort.push_str(".")
+        }
         sort.push_str(&self.field.to_case(Case::Snake));
         sort.push_str(" ");
         sort.push_str(self.sort_by.as_str());

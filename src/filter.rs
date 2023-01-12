@@ -101,15 +101,19 @@ impl Filter {
         res
     }
 
-    pub fn to_camel_psql_string(&self, idx: usize) -> String {
-        let mut res = String::new();
-        res.push_str(&self.field.to_case(Case::Snake));
-        res.push_str(" ");
-        res.push_str(self.condition.as_str());
-        res.push_str(" ");
-        res.push_str("$");
-        res.push_str(&idx.to_string());
+    pub fn to_camel_psql_string(&self, idx: usize, table: Option<&&str>) -> String {
+        let mut filter = String::new();
+        if let Some(table) = table {
+            filter.push_str(table);
+            filter.push_str(".")
+        }
+        filter.push_str(&self.field.to_case(Case::Snake));
+        filter.push_str(" ");
+        filter.push_str(self.condition.as_str());
+        filter.push_str(" ");
+        filter.push_str("$");
+        filter.push_str(&idx.to_string());
 
-        res
+        filter
     }
 }
