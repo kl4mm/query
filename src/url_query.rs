@@ -86,18 +86,25 @@ impl UrlQuery {
         Ok(())
     }
 
-    pub fn check_limit_and_offset(&self) -> Result<(&str, &str), String> {
-        if let None = self.limit_offset.0 {
-            Err(String::from("limit is required"))?;
-        };
-        if let None = self.limit_offset.1 {
-            Err(String::from("offset is required"))?;
-        };
+    pub fn check_limit(&self) -> Result<&str, String> {
+        match self.limit_offset.0 {
+            Some(ref limit) => Ok(limit),
+            None => Err(String::from("limit is required")),
+        }
+    }
 
-        Ok((
-            self.limit_offset.0.as_ref().unwrap(),
-            self.limit_offset.1.as_ref().unwrap(),
-        ))
+    pub fn check_offset(&self) -> Result<&str, String> {
+        match self.limit_offset.1 {
+            Some(ref offset) => Ok(offset),
+            None => Err(String::from("offset is required")),
+        }
+    }
+
+    pub fn check_limit_and_offset(&self) -> Result<(&str, &str), String> {
+        let limit = self.check_limit()?;
+        let offset = self.check_offset()?;
+
+        Ok((limit, offset))
     }
 }
 

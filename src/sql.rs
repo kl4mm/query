@@ -47,8 +47,12 @@ pub fn gen_psql<'a>(
     }
 
     // Limit & offset:
-    if let Ok((limit, offset)) = input.check_limit_and_offset() {
-        append_limit_offset(&mut sql, limit, offset);
+    if let Ok(limit) = input.check_limit() {
+        append_limit(&mut sql, limit);
+
+        if let Ok(offset) = input.check_offset() {
+            append_offset(&mut sql, offset);
+        }
     }
 
     (sql, args)
@@ -110,10 +114,12 @@ fn append_sort(sql: &mut String, sort: &Sort, map_columns: &HashMap<&str, &str>)
     sql.push_str(&sort.to_camel_string(table));
 }
 
-fn append_limit_offset(sql: &mut String, limit: &str, offset: &str) {
+fn append_limit(sql: &mut String, limit: &str) {
     sql.push_str(" LIMIT ");
     sql.push_str(limit);
+}
 
+fn append_offset(sql: &mut String, offset: &str) {
     sql.push_str(" OFFSET ");
     sql.push_str(offset);
 }
@@ -192,6 +198,27 @@ mod test {
     }
 
     #[test]
+    fn test_gen_sql_limit() {
+        let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10";
+
+        let parsed =
+            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
+
+        let (sql, params) = super::gen_psql(
+            &parsed,
+            "orders",
+            vec!["id", "status"],
+            vec![],
+            HashMap::default(),
+        );
+
+        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 LIMIT 10";
+
+        assert_eq!(sql, expected);
+        assert_eq!(params.len(), 3);
+    }
+
+    #[test]
     fn test_gen_sql_limit_offset() {
         let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
 
@@ -213,7 +240,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_gen_sql_ordering() {
         let query = "limit=10&offset=0&filter[]=orderId-eq-1&userId=123&userName=bob";
 
@@ -231,7 +257,7 @@ mod test {
         let expected = "SELECT id, status FROM orders WHERE order_id = $1 AND user_id = $2 AND user_name = $3 LIMIT 10 OFFSET 0";
 
         assert_eq!(sql, expected);
-        assert_eq!(params.len(), 5);
+        assert_eq!(params.len(), 3);
     }
 
     #[test]
