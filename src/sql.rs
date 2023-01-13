@@ -85,7 +85,7 @@ fn append_where<'a>(
     let mut filterv = Vec::new();
     for filter in filters.iter() {
         let table = map_columns.get(filter.field.as_str());
-        filterv.push(filter.to_camel_psql_string(args.len() + 1, table));
+        filterv.push(filter.to_sql_map_table(args.len() + 1, table, Some(Case::Snake)));
         args.insert(&filter.field, &filter.value);
     }
     let filter = filterv.join(" AND ");
@@ -105,13 +105,13 @@ fn append_group(sql: &mut String, group: &str, map_columns: &HashMap<&str, &str>
         sql.push_str(table);
         sql.push_str(".");
     }
-    sql.push_str(&group.to_case(Case::Camel))
+    sql.push_str(&group.to_case(Case::Snake))
 }
 
 fn append_sort(sql: &mut String, sort: &Sort, map_columns: &HashMap<&str, &str>) {
     let table = map_columns.get(sort.field.as_str());
     sql.push_str(" ORDER BY ");
-    sql.push_str(&sort.to_camel_string(table));
+    sql.push_str(&sort.to_sql_map_table(table, Some(Case::Snake)));
 }
 
 fn append_limit(sql: &mut String, limit: &str) {

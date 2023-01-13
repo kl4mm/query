@@ -80,34 +80,21 @@ impl Filter {
     }
 
     pub fn to_string(&self) -> String {
-        let mut res = String::new();
-        res.push_str(&self.field);
-        res.push_str(" ");
-        res.push_str(self.condition.as_str());
-        res.push_str(" ");
-        res.push_str(&self.value);
-
-        res
-    }
-
-    pub fn to_camel_string(&self) -> String {
-        let mut res = String::new();
-        res.push_str(&self.field.to_case(Case::Snake));
-        res.push_str(" ");
-        res.push_str(self.condition.as_str());
-        res.push_str(" ");
-        res.push_str(&self.value);
-
-        res
-    }
-
-    pub fn to_camel_psql_string(&self, idx: usize, table: Option<&&str>) -> String {
         let mut filter = String::new();
-        if let Some(table) = table {
-            filter.push_str(table);
-            filter.push_str(".")
+        filter.push_str(&self.field);
+        filter.push_str(" ");
+        filter.push_str(self.condition.as_str());
+        filter.push_str(" ");
+        filter.push_str(&self.value);
+
+        filter
+    }
+
+    fn to_sql(&self, mut filter: String, idx: usize, case: Option<Case>) -> String {
+        match case {
+            Some(case) => filter.push_str(&self.field.to_case(case)),
+            None => filter.push_str(&self.field),
         }
-        filter.push_str(&self.field.to_case(Case::Snake));
         filter.push_str(" ");
         filter.push_str(self.condition.as_str());
         filter.push_str(" ");
@@ -115,5 +102,15 @@ impl Filter {
         filter.push_str(&idx.to_string());
 
         filter
+    }
+
+    pub fn to_sql_map_table(&self, idx: usize, table: Option<&&str>, case: Option<Case>) -> String {
+        let mut filter = String::new();
+        if let Some(table) = table {
+            filter.push_str(table);
+            filter.push_str(".")
+        }
+
+        self.to_sql(filter, idx, case)
     }
 }

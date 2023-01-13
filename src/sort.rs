@@ -36,17 +36,25 @@ impl Sort {
         sort
     }
 
-    pub fn to_camel_string(&self, table: Option<&&str>) -> String {
+    pub fn to_sql(&self, mut sort: String, case: Option<Case>) -> String {
+        match case {
+            Some(case) => sort.push_str(&self.field.to_case(case)),
+            None => sort.push_str(&self.field.to_case(Case::Snake)),
+        }
+        sort.push_str(" ");
+        sort.push_str(self.sort_by.as_str());
+
+        sort
+    }
+
+    pub fn to_sql_map_table(&self, table: Option<&&str>, case: Option<Case>) -> String {
         let mut sort = String::new();
         if let Some(table) = table {
             sort.push_str(table);
             sort.push_str(".")
         }
-        sort.push_str(&self.field.to_case(Case::Snake));
-        sort.push_str(" ");
-        sort.push_str(self.sort_by.as_str());
 
-        sort
+        self.to_sql(sort, case)
     }
 }
 
