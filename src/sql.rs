@@ -313,7 +313,7 @@ mod test {
 
         let parsed = UrlQuery::new(
             query,
-            &HashSet::from(["userId", "userName", "orderId", "price"]),
+            &HashSet::from(["userId", "userName", "orderId", "id"]),
         )
         .unwrap();
 

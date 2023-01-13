@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
+    check_allowed_fields,
     filter::{Condition, Filter},
     sort::Sort,
     ParseError,
@@ -32,20 +33,21 @@ impl UrlQuery {
             };
 
             if k == "filter[]" {
-                filters.push(Filter::new(v, allowed_fields)?);
+                let filter = Filter::new(v)?;
+                check_allowed_fields(&filter.field, allowed_fields)?;
+                filters.push(filter);
                 continue;
             }
 
             if k == "group" {
-                if !allowed_fields.contains(v) {
-                    Err(ParseError::InvalidField)?
-                }
+                check_allowed_fields(v, allowed_fields)?;
                 group = Some(v.to_owned());
                 continue;
             }
 
             if k == "sort" {
-                sort = Some(Sort::new(v, allowed_fields)?);
+                sort = Some(Sort::new(v)?);
+                check_allowed_fields(&sort.as_ref().unwrap().field, allowed_fields)?;
                 continue;
             }
 
@@ -59,14 +61,11 @@ impl UrlQuery {
                 continue;
             }
 
-            if !allowed_fields.contains(k) {
-                Err(ParseError::InvalidField)?
-            }
+            check_allowed_fields(k, allowed_fields)?;
+            filters.push(Filter::from_key_value(k, v, Condition::EQ));
 
             // To check required:
             params.insert(k.into());
-
-            filters.push(Filter::from_key_value(k, v, Condition::EQ));
         }
 
         Ok(Self {

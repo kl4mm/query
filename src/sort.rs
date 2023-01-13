@@ -2,7 +2,7 @@ use std::{collections::HashSet, str::FromStr};
 
 use convert_case::{Case, Casing};
 
-use crate::ParseError;
+use crate::{check_allowed_fields, ParseError};
 
 // sort=field-desc
 #[derive(Debug, PartialEq)]
@@ -12,15 +12,11 @@ pub struct Sort {
 }
 
 impl Sort {
-    pub fn new(str: &str, allowed_fields: &HashSet<&str>) -> Result<Self, ParseError> {
+    pub fn new(str: &str) -> Result<Self, ParseError> {
         let (field, sort_by) = str
             .split_once("-")
             .map(|(f, s)| (f.to_owned(), s))
             .ok_or_else(|| ParseError::InvalidSort)?;
-
-        if !allowed_fields.contains(field.as_str()) {
-            Err(ParseError::InvalidField)?
-        }
 
         let sort_by = SortBy::from_str(sort_by)?;
 

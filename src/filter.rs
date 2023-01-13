@@ -2,7 +2,7 @@ use std::{collections::HashSet, str::FromStr};
 
 use convert_case::{Case, Casing};
 
-use crate::ParseError;
+use crate::{check_allowed_fields, ParseError};
 
 #[derive(Debug, PartialEq)]
 pub enum Condition {
@@ -52,14 +52,10 @@ pub struct Filter {
 }
 
 impl Filter {
-    pub fn new(str: &str, allowed_fields: &HashSet<&str>) -> Result<Self, ParseError> {
+    pub fn new(str: &str) -> Result<Self, ParseError> {
         let split: Vec<&str> = str.split('-').collect();
         if split.len() != 3 {
             Err(ParseError::InvalidFilter)?
-        }
-
-        if !allowed_fields.contains(split[0]) {
-            Err(ParseError::InvalidField)?
         }
 
         let condition: Condition = split[1].parse()?;
