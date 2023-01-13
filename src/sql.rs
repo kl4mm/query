@@ -336,7 +336,7 @@ mod test {
     fn test_gen_sql_map_columns() {
         let query = "id=1&group=id&sort=createdAt-desc";
 
-        let parsed = UrlQuery::new(query, &HashSet::from(["createdAt"])).unwrap();
+        let parsed = UrlQuery::new(query, &HashSet::from(["id", "createdAt"])).unwrap();
 
         let (sql, params) = super::gen_psql(
             &parsed,

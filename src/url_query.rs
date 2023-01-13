@@ -56,6 +56,10 @@ impl UrlQuery {
                 continue;
             }
 
+            if !allowed_fields.contains(k) {
+                Err(ParseError::InvalidField)?
+            }
+
             // To check required:
             params.insert(k.into());
 
