@@ -1,8 +1,8 @@
-use std::{collections::HashSet, str::FromStr};
+use std::str::FromStr;
 
 use convert_case::{Case, Casing};
 
-use crate::{check_allowed_fields, ParseError};
+use crate::ParseError;
 
 #[derive(Debug, PartialEq)]
 pub enum Condition {

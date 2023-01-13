@@ -4,58 +4,93 @@ use convert_case::{Case, Casing};
 
 use crate::{filter::Filter, sort::Sort, UrlQuery};
 
-/// Generates Postgres SQL statement with params.
+pub enum Database {
+    Postgres,
+}
+
+/// Generates SQL query
 ///
 /// # Examples
 ///
 /// ```
 /// use std::collections::{HashMap, HashSet};
-/// use query::{UrlQuery, sql};
+/// use query::{UrlQuery, sql::{Database, QueryBuilder}};
 ///
 /// let query = "userId=123&userName=bob";
 ///
 /// let parsed = UrlQuery::new(query, &HashSet::from(["userId", "userName"])).unwrap();
 ///
-/// let (sql, params) = sql::gen_psql(&parsed, "orders", vec!["id", "status"], vec![], HashMap::default());
+/// let (sql, args) = QueryBuilder::from_str("SELECT id, status FROM orders", parsed, Database::Postgres).build();
 ///
 /// assert_eq!(sql, "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2");
-/// assert_eq!(params.len(), 2);
+/// assert_eq!(args.len(), 2);
 /// ```
-pub fn gen_psql<'a>(
-    input: &'a UrlQuery,
-    table: &str,
-    columns: Vec<&str>,
-    joins: Vec<&str>,
-    map_columns: HashMap<&str, &str>,
-) -> (String, BTreeMap<&'a str, &'a str>) {
-    let mut sql = gen_sql_select(table, columns);
+pub struct QueryBuilder<'a> {
+    url_query: UrlQuery,
+    _database: Database,
+    map_columns: HashMap<&'a str, &'a str>,
+    sql: String,
+}
 
-    // Joins:
-    append_joins(&mut sql, joins);
+impl<'a> QueryBuilder<'a> {
+    pub fn new(table: &str, columns: Vec<&str>, url_query: UrlQuery, database: Database) -> Self {
+        let sql = gen_sql_select(table, columns);
 
-    // WHERE clause, returns bind args
-    let args = append_where(&mut sql, &input.filters, &map_columns);
-
-    // Group:
-    if let Some(ref group) = input.group {
-        append_group(&mut sql, group, &map_columns);
-    }
-
-    // Sort:
-    if let Some(ref sort) = input.sort {
-        append_sort(&mut sql, sort, &map_columns);
-    }
-
-    // Limit & offset:
-    if let Ok(limit) = input.check_limit() {
-        append_limit(&mut sql, limit);
-
-        if let Ok(offset) = input.check_offset() {
-            append_offset(&mut sql, offset);
+        Self {
+            url_query,
+            _database: database,
+            map_columns: HashMap::default(),
+            sql,
         }
     }
 
-    (sql, args)
+    pub fn from_str(sql: &str, url_query: UrlQuery, database: Database) -> Self {
+        Self {
+            url_query,
+            _database: database,
+            map_columns: HashMap::default(),
+            sql: sql.into(),
+        }
+    }
+
+    pub fn append(mut self, sql: &str) -> Self {
+        self.sql.push_str(" ");
+        self.sql.push_str(sql);
+
+        self
+    }
+
+    pub fn map_columns(mut self, map_columns: HashMap<&'a str, &'a str>) -> Self {
+        self.map_columns = map_columns;
+
+        self
+    }
+
+    pub fn build(mut self) -> (String, BTreeMap<String, String>) {
+        // WHERE clause, returns bind args
+        let args = append_where(&mut self.sql, &self.url_query.filters, &self.map_columns);
+
+        // Group:
+        if let Some(ref group) = self.url_query.group {
+            append_group(&mut self.sql, group, &self.map_columns);
+        }
+
+        // Sort:
+        if let Some(ref sort) = self.url_query.sort {
+            append_sort(&mut self.sql, sort, &self.map_columns);
+        }
+
+        // Limit & offset:
+        if let Ok(limit) = self.url_query.check_limit() {
+            append_limit(&mut self.sql, limit);
+
+            if let Ok(offset) = self.url_query.check_offset() {
+                append_offset(&mut self.sql, offset);
+            }
+        }
+
+        (self.sql, args)
+    }
 }
 
 fn gen_sql_select(table: &str, columns: Vec<&str>) -> String {
@@ -67,26 +102,19 @@ fn gen_sql_select(table: &str, columns: Vec<&str>) -> String {
     sql
 }
 
-fn append_joins(sql: &mut String, joins: Vec<&str>) {
-    for join in joins {
-        sql.push_str(" ");
-        sql.push_str(join)
-    }
-}
-
-fn append_where<'a>(
+fn append_where(
     sql: &mut String,
-    filters: &'a Vec<Filter>,
+    filters: &Vec<Filter>,
     map_columns: &HashMap<&str, &str>,
-) -> BTreeMap<&'a str, &'a str> {
-    let mut args: BTreeMap<&str, &str> = BTreeMap::new();
+) -> BTreeMap<String, String> {
+    let mut args: BTreeMap<String, String> = BTreeMap::new();
 
     // Filters:
     let mut filterv = Vec::new();
     for filter in filters.iter() {
         let table = map_columns.get(filter.field.as_str());
         filterv.push(filter.to_sql_map_table(args.len() + 1, table, Some(Case::Snake)));
-        args.insert(&filter.field, &filter.value);
+        args.insert(filter.field.to_owned(), filter.value.to_owned());
     }
     let filter = filterv.join(" AND ");
 
@@ -130,52 +158,12 @@ mod test {
 
     use crate::UrlQuery;
 
-    #[test]
-    fn test_gen_sql_no_filters_or_sort() {
-        let query = "userId=123&userName=bob";
-
-        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "userName"])).unwrap();
-
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec![],
-            HashMap::default(),
-        );
-
-        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2";
-
-        assert_eq!(sql, expected);
-        assert_eq!(params.len(), 2);
-    }
+    use super::{Database, QueryBuilder};
 
     #[test]
-    fn test_gen_sql_no_sort() {
-        let query = "userId=123&userName=bob&filter[]=orderId-eq-1";
-
-        let parsed =
-            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
-
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec![],
-            HashMap::default(),
-        );
-
-        let expected =
-            "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3";
-
-        assert_eq!(sql, expected);
-        assert_eq!(params.len(), 3);
-    }
-
-    #[test]
-    fn test_gen_sql() {
+    fn test_query_builder_from_str() {
         let query =
-            "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
+            "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&limit=10&offset=0";
 
         let parsed = UrlQuery::new(
             query,
@@ -183,109 +171,24 @@ mod test {
         )
         .unwrap();
 
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec![],
-            HashMap::default(),
-        );
+        let (sql, args) =
+            QueryBuilder::from_str("SELECT * FROM orders", parsed, Database::Postgres).build();
 
-        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 AND price >= $4 ORDER BY price DESC";
+        let expected = "SELECT * FROM orders \
+        WHERE user_id = $1 AND user_name = $2 \
+        AND order_id = $3 AND price >= $4 \
+        ORDER BY price DESC \
+        LIMIT 10 \
+        OFFSET 0";
 
         assert_eq!(sql, expected);
-        assert_eq!(params.len(), 4);
+        assert_eq!(args.len(), 4);
     }
 
     #[test]
-    fn test_gen_sql_limit() {
-        let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10";
-
-        let parsed =
-            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
-
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec![],
-            HashMap::default(),
-        );
-
-        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 LIMIT 10";
-
-        assert_eq!(sql, expected);
-        assert_eq!(params.len(), 3);
-    }
-
-    #[test]
-    fn test_gen_sql_limit_offset() {
-        let query = "userId=123&userName=bob&filter[]=orderId-eq-1&limit=10&offset=0";
-
-        let parsed =
-            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
-
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec![],
-            HashMap::default(),
-        );
-
-        let expected = "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 LIMIT 10 OFFSET 0";
-
-        assert_eq!(sql, expected);
-        assert_eq!(params.len(), 3);
-    }
-
-    #[test]
-    fn test_gen_sql_ordering() {
-        let query = "limit=10&offset=0&filter[]=orderId-eq-1&userId=123&userName=bob";
-
-        let parsed =
-            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
-
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec![],
-            HashMap::default(),
-        );
-
-        let expected = "SELECT id, status FROM orders WHERE order_id = $1 AND user_id = $2 AND user_name = $3 LIMIT 10 OFFSET 0";
-
-        assert_eq!(sql, expected);
-        assert_eq!(params.len(), 3);
-    }
-
-    #[test]
-    fn test_gen_sql_no_params() {
-        let query = "limit=10&offset=0&filter[]=orderId-eq-1&filter[]=userId-eq-1";
-
-        let parsed =
-            UrlQuery::new(query, &HashSet::from(["userId", "userName", "orderId"])).unwrap();
-
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec![],
-            HashMap::default(),
-        );
-
-        let expected =
-            "SELECT id, status FROM orders WHERE order_id = $1 AND user_id = $2 LIMIT 10 OFFSET 0";
-
-        assert_eq!(sql, expected);
-        assert_eq!(params.len(), 2);
-    }
-
-    #[test]
-    fn test_gen_sql_with_join() {
+    fn test_query_builder_new() {
         let query =
-            "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
+            "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&limit=10&offset=0";
 
         let parsed = UrlQuery::new(
             query,
@@ -293,67 +196,65 @@ mod test {
         )
         .unwrap();
 
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec!["JOIN users ON users.id = order.user_id"],
-            HashMap::default(),
-        );
+        let (sql, args) =
+            QueryBuilder::new("orders", vec!["id", "status"], parsed, Database::Postgres).build();
 
-        let expected = "SELECT id, status FROM orders JOIN users ON users.id = order.user_id WHERE user_id = $1 AND user_name = $2 AND order_id = $3 AND price >= $4 ORDER BY price DESC";
+        let expected = "SELECT id, status FROM orders \
+        WHERE user_id = $1 AND user_name = $2 \
+        AND order_id = $3 AND price >= $4 \
+        ORDER BY price DESC \
+        LIMIT 10 \
+        OFFSET 0";
 
         assert_eq!(sql, expected);
-        assert_eq!(params.len(), 4);
+        assert_eq!(args.len(), 4);
     }
 
     #[test]
-    fn test_gen_sql_group() {
-        let query = "userId=123&userName=bob&filter[]=orderId-eq-1&group=id";
+    fn test_query_builder_new_append_joins() {
+        let query =
+            "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&limit=10&offset=0";
 
         let parsed = UrlQuery::new(
             query,
-            &HashSet::from(["userId", "userName", "orderId", "id"]),
+            &HashSet::from(["userId", "userName", "orderId", "price"]),
         )
         .unwrap();
 
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec!["id", "status"],
-            vec![],
-            HashMap::default(),
-        );
+        let (sql, args) =
+            QueryBuilder::new("orders", vec!["id", "status"], parsed, Database::Postgres)
+                .append("JOIN users ON users.id = order.user_id")
+                .append("JOIN inventory ON inventory.id = order.inventory_id")
+                .build();
 
-        let expected =
-            "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2 AND order_id = $3 GROUP BY id";
+        let expected = "SELECT id, status FROM orders \
+        JOIN users ON users.id = order.user_id \
+        JOIN inventory ON inventory.id = order.inventory_id \
+        WHERE user_id = $1 AND user_name = $2 \
+        AND order_id = $3 AND price >= $4 \
+        ORDER BY price DESC \
+        LIMIT 10 \
+        OFFSET 0";
 
         assert_eq!(sql, expected);
-        assert_eq!(params.len(), 3);
+        assert_eq!(args.len(), 4);
     }
 
     #[test]
-    fn test_gen_sql_map_columns() {
+    fn test_query_builder_new_map_columns() {
         let query = "id=1&group=id&sort=createdAt-desc";
 
         let parsed = UrlQuery::new(query, &HashSet::from(["id", "createdAt"])).unwrap();
 
-        let (sql, params) = super::gen_psql(
-            &parsed,
-            "orders",
-            vec![
-                "orders.id",
-                "user_id",
-                "status",
-                "address_id",
-                "orders.created_at",
-            ],
-            vec![
-                "JOIN order_items ON orders.id = order_items.order_id",
-                "JOIN inventory ON order_items.inventory_id = inventory.id",
-            ],
-            HashMap::from([("id", "orders"), ("createdAt", "orders")]),
-        );
+        let (sql, args) = QueryBuilder::from_str(
+            "SELECT orders.id, user_id, status, address_id, orders.created_at FROM orders",
+            parsed,
+            Database::Postgres,
+        )
+        .append("JOIN order_items ON orders.id = order_items.order_id")
+        .append("JOIN inventory ON order_items.inventory_id = inventory.id")
+        .map_columns(HashMap::from([("id", "orders"), ("createdAt", "orders")]))
+        .build();
 
         let expected =
             "SELECT orders.id, user_id, status, address_id, orders.created_at FROM orders \
@@ -362,6 +263,6 @@ mod test {
              WHERE orders.id = $1 GROUP BY orders.id ORDER BY orders.created_at DESC";
 
         assert_eq!(sql, expected);
-        assert_eq!(params.len(), 1);
+        assert_eq!(args.len(), 1);
     }
 }
