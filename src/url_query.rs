@@ -37,6 +37,9 @@ impl UrlQuery {
             }
 
             if k == "group" {
+                if !allowed_fields.contains(v) {
+                    Err(ParseError::InvalidField)?
+                }
                 group = Some(v.to_owned());
                 continue;
             }
