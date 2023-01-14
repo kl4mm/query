@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use convert_case::{Case, Casing};
 
@@ -66,7 +66,7 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
-    pub fn build(mut self) -> (String, BTreeMap<String, String>) {
+    pub fn build(mut self) -> (String, Vec<(String, String)>) {
         // WHERE clause, returns bind args
         let args = append_where(&mut self.sql, &self.url_query.filters, &self.map_columns);
 
@@ -106,15 +106,15 @@ fn append_where(
     sql: &mut String,
     filters: &Vec<Filter>,
     map_columns: &HashMap<&str, &str>,
-) -> BTreeMap<String, String> {
-    let mut args: BTreeMap<String, String> = BTreeMap::new();
+) -> Vec<(String, String)> {
+    let mut args: Vec<(String, String)> = Vec::new();
 
     // Filters:
     let mut filterv = Vec::new();
     for filter in filters.iter() {
         let table = map_columns.get(filter.field.as_str());
         filterv.push(filter.to_sql_map_table(args.len() + 1, table, Some(Case::Snake)));
-        args.insert(filter.field.to_owned(), filter.value.to_owned());
+        args.push((filter.field.to_owned(), filter.value.to_owned()));
     }
     let filter = filterv.join(" AND ");
 
@@ -156,7 +156,10 @@ fn append_offset(sql: &mut String, offset: &str) {
 mod test {
     use std::collections::{HashMap, HashSet};
 
-    use crate::UrlQuery;
+    use crate::{
+        filter::{Condition, Filter},
+        UrlQuery,
+    };
 
     use super::{Database, QueryBuilder};
 
@@ -264,5 +267,30 @@ mod test {
 
         assert_eq!(sql, expected);
         assert_eq!(args.len(), 1);
+    }
+
+    #[test]
+    fn test_append_where() {
+        let filters = vec![
+            Filter {
+                field: "userId".into(),
+                condition: Condition::EQ,
+                value: "1".into(),
+            },
+            Filter {
+                field: "id".into(),
+                condition: Condition::EQ,
+                value: "829a202f-0e2a-4e8e-9947-938594f9ff26".into(),
+            },
+        ];
+
+        let mut args =
+            super::append_where(&mut String::new(), &filters, &HashMap::default()).into_iter();
+
+        let user_id = args.next().unwrap().1;
+        assert_eq!(user_id, "1");
+
+        let id = args.next().unwrap().1;
+        assert_eq!(id, "829a202f-0e2a-4e8e-9947-938594f9ff26");
     }
 }
