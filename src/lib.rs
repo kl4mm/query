@@ -1,5 +1,6 @@
 pub mod filter;
 pub mod sort;
+#[macro_use]
 pub mod sql;
 pub mod url_query;
 
