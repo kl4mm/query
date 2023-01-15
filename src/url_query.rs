@@ -1,11 +1,18 @@
 use std::collections::HashSet;
 
 use crate::{
-    check_allowed_fields,
     filter::{Condition, Filter},
     sort::Sort,
     ParseError,
 };
+
+fn check_allowed_fields(field: &str, allowed_fields: &HashSet<&str>) -> Result<(), ParseError> {
+    if !allowed_fields.contains(field) {
+        Err(ParseError::InvalidField)?
+    }
+
+    Ok(())
+}
 
 #[derive(Debug, PartialEq)]
 pub struct UrlQuery {

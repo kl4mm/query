@@ -5,8 +5,6 @@ pub mod sort;
 pub mod sql;
 pub mod url_query;
 
-use std::collections::HashSet;
-
 pub use url_query::UrlQuery;
 
 #[derive(Debug, PartialEq)]
@@ -18,10 +16,16 @@ pub enum ParseError {
     InvalidField,
 }
 
-fn check_allowed_fields(field: &str, allowed_fields: &HashSet<&str>) -> Result<(), ParseError> {
-    if !allowed_fields.contains(field) {
-        Err(ParseError::InvalidField)?
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseError::InvalidSort => write!(f, "invalid sort"),
+            ParseError::InvalidSortBy => write!(f, "invalid sort by"),
+            ParseError::InvalidFilter => write!(f, "invalid filter"),
+            ParseError::InvalidCondition => write!(f, "invalid filter condition"),
+            ParseError::InvalidField => write!(f, "invalid field"),
+        }
     }
-
-    Ok(())
 }
+
+impl std::error::Error for ParseError {}
