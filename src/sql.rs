@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use convert_case::{Case, Casing};
 
-use crate::{filter::Filter, sort::Sort, UrlQuery};
+use crate::{sort::Sort, UrlQuery};
 
 pub enum Database {
     Postgres,
@@ -29,6 +29,7 @@ pub struct QueryBuilder<'a> {
     url_query: UrlQuery,
     _database: Database,
     map_columns: HashMap<&'a str, &'a str>,
+    shift_bind: usize,
     sql: String,
 }
 
@@ -40,6 +41,7 @@ impl<'a> QueryBuilder<'a> {
             url_query,
             _database: database,
             map_columns: HashMap::default(),
+            shift_bind: 0,
             sql,
         }
     }
@@ -49,6 +51,7 @@ impl<'a> QueryBuilder<'a> {
             url_query,
             _database: database,
             map_columns: HashMap::default(),
+            shift_bind: 0,
             sql: sql.into(),
         }
     }
@@ -66,9 +69,40 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
+    pub fn shift_bind(mut self, x: usize) -> Self {
+        self.shift_bind = x;
+
+        self
+    }
+
+    pub fn append_where(&mut self) -> Vec<(String, String)> {
+        let mut args: Vec<(String, String)> = Vec::new();
+
+        // Filters:
+        let mut filterv = Vec::new();
+        for filter in self.url_query.filters.iter() {
+            let table = self.map_columns.get(filter.field.as_str());
+            filterv.push(filter.to_sql_map_table(
+                args.len() + self.shift_bind + 1,
+                table,
+                Some(Case::Snake),
+            ));
+            args.push((filter.field.to_owned(), filter.value.to_owned()));
+        }
+        let filter = filterv.join(" AND ");
+
+        // WHERE clause
+        if filterv.len() > 0 {
+            self.sql.push_str(" WHERE ");
+            self.sql.push_str(&filter);
+        }
+
+        args
+    }
+
     pub fn build(mut self) -> (String, Vec<(String, String)>) {
         // WHERE clause, returns bind args
-        let args = append_where(&mut self.sql, &self.url_query.filters, &self.map_columns);
+        let args = self.append_where();
 
         // Group:
         if let Some(ref group) = self.url_query.group {
@@ -100,31 +134,6 @@ fn gen_sql_select(table: &str, columns: Vec<&str>) -> String {
     sql.push_str(" FROM ");
     sql.push_str(table);
     sql
-}
-
-fn append_where(
-    sql: &mut String,
-    filters: &Vec<Filter>,
-    map_columns: &HashMap<&str, &str>,
-) -> Vec<(String, String)> {
-    let mut args: Vec<(String, String)> = Vec::new();
-
-    // Filters:
-    let mut filterv = Vec::new();
-    for filter in filters.iter() {
-        let table = map_columns.get(filter.field.as_str());
-        filterv.push(filter.to_sql_map_table(args.len() + 1, table, Some(Case::Snake)));
-        args.push((filter.field.to_owned(), filter.value.to_owned()));
-    }
-    let filter = filterv.join(" AND ");
-
-    // WHERE clause
-    if filterv.len() > 0 {
-        sql.push_str(" WHERE ");
-        sql.push_str(&filter);
-    }
-
-    args
 }
 
 fn append_group(sql: &mut String, group: &str, map_columns: &HashMap<&str, &str>) {
@@ -203,10 +212,7 @@ macro_rules! sqlx_bind {
 mod test {
     use std::collections::{HashMap, HashSet};
 
-    use crate::{
-        filter::{Condition, Filter},
-        UrlQuery,
-    };
+    use crate::UrlQuery;
 
     use super::{Database, QueryBuilder};
 
@@ -318,26 +324,39 @@ mod test {
 
     #[test]
     fn test_append_where() {
-        let filters = vec![
-            Filter {
-                field: "userId".into(),
-                condition: Condition::EQ,
-                value: "1".into(),
-            },
-            Filter {
-                field: "id".into(),
-                condition: Condition::EQ,
-                value: "829a202f-0e2a-4e8e-9947-938594f9ff26".into(),
-            },
-        ];
+        let query = "filter[]=userId-eq-1&filter[]=id-eq-2";
 
-        let mut args =
-            super::append_where(&mut String::new(), &filters, &HashMap::default()).into_iter();
+        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "id"])).unwrap();
+
+        let mut builder = QueryBuilder::from_str("", parsed, Database::Postgres);
+
+        let mut args = builder.append_where().into_iter();
 
         let user_id = args.next().unwrap().1;
         assert_eq!(user_id, "1");
 
         let id = args.next().unwrap().1;
-        assert_eq!(id, "829a202f-0e2a-4e8e-9947-938594f9ff26");
+        assert_eq!(id, "2");
+    }
+
+    #[test]
+    fn test_shift_bind() {
+        let query = "filter[]=userId-eq-1&filter[]=id-eq-2";
+
+        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "id"])).unwrap();
+
+        let builder = QueryBuilder::from_str(
+            "SELECT id, (SELECT postcode FROM address WHERE id = $1) FROM orders",
+            parsed,
+            Database::Postgres,
+        )
+        .shift_bind(1);
+
+        let (sql, args) = builder.build();
+
+        let expected = "SELECT id, (SELECT postcode FROM address WHERE id = $1) FROM orders WHERE user_id = $2 AND id = $3";
+
+        assert_eq!(sql, expected);
+        assert_eq!(args.len(), 2);
     }
 }
