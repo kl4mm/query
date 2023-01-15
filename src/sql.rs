@@ -100,19 +100,39 @@ impl<'a> QueryBuilder<'a> {
         args
     }
 
+    pub fn append_group(&mut self) {
+        if self.url_query.group.is_none() {
+            return;
+        };
+
+        let group = self.url_query.group.as_ref().unwrap();
+        self.sql.push_str(" GROUP BY ");
+        if let Some(table) = self.map_columns.get(group.as_str()) {
+            self.sql.push_str(table);
+            self.sql.push_str(".");
+        }
+        self.sql.push_str(&group.to_case(Case::Snake))
+    }
+
+    pub fn append_sort(&mut self) {
+        if self.url_query.sort.is_none() {
+            return;
+        }
+
+        let sort = self.url_query.sort.as_ref().unwrap();
+        let table = self.map_columns.get(sort.field.as_str());
+        self.sql.push_str(" ORDER BY ");
+        self.sql
+            .push_str(&sort.to_sql_map_table(table, Some(Case::Snake)));
+    }
+
     pub fn build(mut self) -> (String, Vec<(String, String)>) {
-        // WHERE clause, returns bind args
+        // returns bind args
         let args = self.append_where();
 
-        // Group:
-        if let Some(ref group) = self.url_query.group {
-            append_group(&mut self.sql, group, &self.map_columns);
-        }
+        self.append_group();
 
-        // Sort:
-        if let Some(ref sort) = self.url_query.sort {
-            append_sort(&mut self.sql, sort, &self.map_columns);
-        }
+        self.append_sort();
 
         // Limit & offset:
         if let Ok(limit) = self.url_query.check_limit() {
@@ -134,21 +154,6 @@ fn gen_sql_select(table: &str, columns: Vec<&str>) -> String {
     sql.push_str(" FROM ");
     sql.push_str(table);
     sql
-}
-
-fn append_group(sql: &mut String, group: &str, map_columns: &HashMap<&str, &str>) {
-    sql.push_str(" GROUP BY ");
-    if let Some(table) = map_columns.get(group) {
-        sql.push_str(table);
-        sql.push_str(".");
-    }
-    sql.push_str(&group.to_case(Case::Snake))
-}
-
-fn append_sort(sql: &mut String, sort: &Sort, map_columns: &HashMap<&str, &str>) {
-    let table = map_columns.get(sort.field.as_str());
-    sql.push_str(" ORDER BY ");
-    sql.push_str(&sort.to_sql_map_table(table, Some(Case::Snake)));
 }
 
 fn append_limit(sql: &mut String, limit: &str) {
