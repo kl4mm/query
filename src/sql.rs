@@ -8,7 +8,7 @@ pub enum Database {
     Postgres,
 }
 
-/// Generates SQL query
+/// Generates an SQL query
 ///
 /// # Examples
 ///
@@ -150,6 +150,53 @@ fn append_limit(sql: &mut String, limit: &str) {
 fn append_offset(sql: &mut String, offset: &str) {
     sql.push_str(" OFFSET ");
     sql.push_str(offset);
+}
+
+/// Bind args to an sqlx query with the required types.
+///
+/// ```ignore
+/// pub async fn get_orders(
+///     pool: &PgPool,
+///     query: UrlQuery,
+/// ) -> Result<Vec<Order>, Either<sqlx::Error, ParseError>> {
+///     let (sql, args) = QueryBuilder::from_str(
+///         "SELECT * FROM orders",
+///         query,
+///         Postgres,
+///     )
+///     .build();
+///
+///     let mut query = sqlx::query_as(&sql);
+///
+///     bind!(
+///         args => query,
+///         error: Either::Right(ParseError),
+///         "id" => Uuid,
+///         "userId" => i64
+///     );
+///
+///     Ok(query.fetch_all(pool).await.map_err(|e| Either::Left(e))?)
+/// }
+/// ```
+#[macro_export]
+macro_rules! sqlx_bind {
+    ( $args:ident => $query:ident, error: $error:expr, $( $x:expr => $t:ty ),* ) => {
+        {
+            for (column, arg) in $args {
+                match column.as_str() {
+                    $(
+                        $x => {
+                            let parsed: $t = arg.parse().map_err(|_| {
+                                $error
+                            })?;
+                            $query = $query.bind(parsed);
+                        }
+                    )*
+                    _ => {}
+                }
+            }
+        }
+    };
 }
 
 #[cfg(test)]
