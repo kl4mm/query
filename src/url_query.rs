@@ -83,9 +83,7 @@ impl UrlQuery {
             limit_offset,
         })
     }
-}
 
-impl UrlQuery {
     pub fn check_required(&self, required: Vec<&str>) -> Result<(), String> {
         for r in required {
             if let None = self.params.get(r) {
@@ -118,6 +116,22 @@ impl UrlQuery {
         let offset = self.check_offset()?;
 
         Ok((limit, offset))
+    }
+
+    pub fn filters_mut(&mut self) -> &mut Vec<Filter> {
+        &mut self.filters
+    }
+
+    pub fn group_mut(&mut self) -> &mut Option<String> {
+        &mut self.group
+    }
+
+    pub fn sort_mut(&mut self) -> &mut Option<Sort> {
+        &mut self.sort
+    }
+
+    pub fn limit_offset_mut(&mut self) -> &mut (Option<String>, Option<String>) {
+        &mut self.limit_offset
     }
 }
 
@@ -221,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn test_allowed_field() {
+    fn test_allowed_fields() {
         let query = "userId=bob&filter[]=orderId-eq-1";
 
         let allowed = HashSet::from(["userId"]);

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use convert_case::{Case, Casing};
 
-use crate::{sort::Sort, UrlQuery};
+use crate::UrlQuery;
 
 pub enum Database {
     Postgres,
