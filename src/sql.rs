@@ -34,6 +34,15 @@ pub struct QueryBuilder<'a> {
 }
 
 impl<'a> QueryBuilder<'a> {
+    /// Returns a QueryBuilder.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use query::sql::{QueryBuilder, Database};
+    ///
+    /// let result = QueryBuilder::new("users", vec!["id", "first_name"], url_query, Database::Postgres);
+    /// ```
     pub fn new(table: &str, columns: Vec<&str>, url_query: UrlQuery, database: Database) -> Self {
         let sql = gen_sql_select(table, columns);
 
@@ -46,6 +55,15 @@ impl<'a> QueryBuilder<'a> {
         }
     }
 
+    /// Returns a QueryBuilder.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use query::sql::{QueryBuilder, Database};
+    ///
+    /// let result = QueryBuilder::from_str("SELECT * FROM users", url_query, Database::Postgres);
+    /// ```
     pub fn from_str(sql: &str, url_query: UrlQuery, database: Database) -> Self {
         Self {
             url_query,
@@ -56,6 +74,7 @@ impl<'a> QueryBuilder<'a> {
         }
     }
 
+    /// Append anything to the SQL.
     pub fn append(mut self, sql: &str) -> Self {
         self.sql.push_str(" ");
         self.sql.push_str(sql);
@@ -63,18 +82,22 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
+    /// Provide a HashMap containing table and column to map ambiguous columns.
     pub fn map_columns(mut self, map_columns: HashMap<&'a str, &'a str>) -> Self {
         self.map_columns = map_columns;
 
         self
     }
 
+    /// Shifts the number of the bind parameter for postgres. For example, if you call this
+    /// method with a value of 1, the first arg you'll need to bind to the SQL will be $2.
     pub fn shift_bind(mut self, x: usize) -> Self {
         self.shift_bind = x;
 
         self
     }
 
+    /// Append the WHERE clause to the SQL. Does nothing if there are no query/filter in the url query.
     pub fn append_where(&mut self) -> Vec<(String, String)> {
         let mut args: Vec<(String, String)> = Vec::new();
 
@@ -100,6 +123,7 @@ impl<'a> QueryBuilder<'a> {
         args
     }
 
+    /// Append a GROUP BY to the SQL. Does nothing if there is no group in the url query.
     pub fn append_group(&mut self) {
         if self.url_query.group.is_none() {
             return;
@@ -114,6 +138,7 @@ impl<'a> QueryBuilder<'a> {
         self.sql.push_str(&group.to_case(Case::Snake))
     }
 
+    /// Append an ORDER BY to the SQL. Does nothing if there is no sort in the url query.
     pub fn append_sort(&mut self) {
         if self.url_query.sort.is_none() {
             return;
@@ -126,6 +151,7 @@ impl<'a> QueryBuilder<'a> {
             .push_str(&sort.to_sql_map_table(table, Some(Case::Snake)));
     }
 
+    /// Returns SQL statement along with a list of columns and args to bind.
     pub fn build(mut self) -> (String, Vec<(String, String)>) {
         // returns bind args
         let args = self.append_where();
