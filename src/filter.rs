@@ -53,17 +53,20 @@ pub struct Filter {
 
 impl Filter {
     pub fn new(str: &str) -> Result<Self, ParseError> {
-        let split: Vec<&str> = str.split('-').collect();
-        if split.len() != 3 {
-            Err(ParseError::InvalidFilter)?
-        }
+        let (field, rest) = match str.split_once("-") {
+            Some(s) => s,
+            None => Err(ParseError::InvalidFilter)?,
+        };
 
-        let condition: Condition = split[1].parse()?;
+        let (condition, value) = match rest.split_once("-") {
+            Some(s) => s,
+            None => Err(ParseError::InvalidFilter)?,
+        };
 
         Ok(Self {
-            field: split[0].into(),
-            condition,
-            value: split[2].into(),
+            field: field.into(),
+            condition: condition.parse()?,
+            value: value.into(),
         })
     }
 
@@ -108,5 +111,17 @@ impl Filter {
         }
 
         self.to_sql(filter, idx, case)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Filter;
+
+    #[test]
+    fn test_new_uuid() {
+        let filter = Filter::new("id-eq-8bd8a6fb-e2b2-47ab-b3db-4f47c067ba5e").unwrap();
+
+        assert_eq!(filter.value, "8bd8a6fb-e2b2-47ab-b3db-4f47c067ba5e");
     }
 }
