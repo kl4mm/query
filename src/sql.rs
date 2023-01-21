@@ -22,7 +22,7 @@ pub enum Database {
 ///
 /// let (sql, args) = QueryBuilder::from_str("SELECT id, status FROM orders", parsed, Database::Postgres).build();
 ///
-/// assert_eq!(sql, "SELECT id, status FROM orders WHERE user_id = $1 AND user_name = $2");
+/// assert_eq!(sql, "SELECT id, status FROM orders WHERE userId = $1 AND userName = $2");
 /// assert_eq!(args.len(), 2);
 /// ```
 pub struct QueryBuilder<'a> {
@@ -30,6 +30,7 @@ pub struct QueryBuilder<'a> {
     _database: Database,
     map_columns: HashMap<&'a str, &'a str>,
     shift_bind: usize,
+    convert_case: Option<Case>,
     sql: String,
 }
 
@@ -51,6 +52,7 @@ impl<'a> QueryBuilder<'a> {
             _database: database,
             map_columns: HashMap::default(),
             shift_bind: 0,
+            convert_case: None,
             sql,
         }
     }
@@ -70,6 +72,7 @@ impl<'a> QueryBuilder<'a> {
             _database: database,
             map_columns: HashMap::default(),
             shift_bind: 0,
+            convert_case: None,
             sql: sql.into(),
         }
     }
@@ -97,6 +100,12 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
+    pub fn convert_case(mut self, case: Case) -> Self {
+        self.convert_case = Some(case);
+
+        self
+    }
+
     /// Append the WHERE clause to the SQL. Does nothing if there are no query/filter in the url query.
     pub fn append_where(&mut self) -> Vec<(String, String)> {
         let mut args: Vec<(String, String)> = Vec::new();
@@ -108,7 +117,7 @@ impl<'a> QueryBuilder<'a> {
             filterv.push(filter.to_sql_map_table(
                 args.len() + self.shift_bind + 1,
                 table,
-                Some(Case::Snake),
+                self.convert_case,
             ));
             args.push((filter.field.to_owned(), filter.value.to_owned()));
         }
@@ -135,7 +144,11 @@ impl<'a> QueryBuilder<'a> {
             self.sql.push_str(table);
             self.sql.push_str(".");
         }
-        self.sql.push_str(&group.to_case(Case::Snake))
+
+        match self.convert_case {
+            Some(c) => self.sql.push_str(&group.to_case(c)),
+            None => self.sql.push_str(&group),
+        }
     }
 
     /// Append an ORDER BY to the SQL. Does nothing if there is no sort in the url query.
@@ -148,7 +161,7 @@ impl<'a> QueryBuilder<'a> {
         let table = self.map_columns.get(sort.field.as_str());
         self.sql.push_str(" ORDER BY ");
         self.sql
-            .push_str(&sort.to_sql_map_table(table, Some(Case::Snake)));
+            .push_str(&sort.to_sql_map_table(table, self.convert_case));
     }
 
     /// Returns SQL statement along with a list of columns and args to bind.
@@ -243,6 +256,8 @@ macro_rules! sqlx_bind {
 mod test {
     use std::collections::{HashMap, HashSet};
 
+    use convert_case::Case;
+
     use crate::UrlQuery;
 
     use super::{Database, QueryBuilder};
@@ -259,7 +274,9 @@ mod test {
         .unwrap();
 
         let (sql, args) =
-            QueryBuilder::from_str("SELECT * FROM orders", parsed, Database::Postgres).build();
+            QueryBuilder::from_str("SELECT * FROM orders", parsed, Database::Postgres)
+                .convert_case(Case::Snake)
+                .build();
 
         let expected = "SELECT * FROM orders \
         WHERE user_id = $1 AND user_name = $2 \
@@ -284,7 +301,9 @@ mod test {
         .unwrap();
 
         let (sql, args) =
-            QueryBuilder::new("orders", vec!["id", "status"], parsed, Database::Postgres).build();
+            QueryBuilder::new("orders", vec!["id", "status"], parsed, Database::Postgres)
+                .convert_case(Case::Snake)
+                .build();
 
         let expected = "SELECT id, status FROM orders \
         WHERE user_id = $1 AND user_name = $2 \
@@ -312,6 +331,7 @@ mod test {
             QueryBuilder::new("orders", vec!["id", "status"], parsed, Database::Postgres)
                 .append("JOIN users ON users.id = order.user_id")
                 .append("JOIN inventory ON inventory.id = order.inventory_id")
+                .convert_case(Case::Snake)
                 .build();
 
         let expected = "SELECT id, status FROM orders \
@@ -341,6 +361,7 @@ mod test {
         .append("JOIN order_items ON orders.id = order_items.order_id")
         .append("JOIN inventory ON order_items.inventory_id = inventory.id")
         .map_columns(HashMap::from([("id", "orders"), ("createdAt", "orders")]))
+        .convert_case(Case::Snake)
         .build();
 
         let expected =
@@ -376,14 +397,14 @@ mod test {
 
         let parsed = UrlQuery::new(query, &HashSet::from(["userId", "id"])).unwrap();
 
-        let builder = QueryBuilder::from_str(
+        let (sql, args) = QueryBuilder::from_str(
             "SELECT id, (SELECT postcode FROM address WHERE id = $1) FROM orders",
             parsed,
             Database::Postgres,
         )
-        .shift_bind(1);
-
-        let (sql, args) = builder.build();
+        .shift_bind(1)
+        .convert_case(Case::Snake)
+        .build();
 
         let expected = "SELECT id, (SELECT postcode FROM address WHERE id = $1) FROM orders WHERE user_id = $2 AND id = $3";
 
