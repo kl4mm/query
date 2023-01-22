@@ -77,6 +77,13 @@ impl<'a> QueryBuilder<'a> {
         }
     }
 
+    /// Set the database
+    pub fn database(mut self, database: Database) -> Self {
+        self._database = database;
+
+        self
+    }
+
     /// Append anything to the SQL.
     pub fn append(mut self, sql: &str) -> Self {
         self.sql.push_str(" ");
