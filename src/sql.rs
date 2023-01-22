@@ -19,7 +19,7 @@ pub enum Database {
 ///
 /// let query = "userId=123&userName=bob";
 ///
-/// let parsed = UrlQuery::new(query, &HashSet::from(["userId", "userName"])).unwrap();
+/// let parsed = UrlQuery::new(query, ["userId", "userName"]).unwrap();
 ///
 /// let (sql, args) = QueryBuilder::from_str("SELECT id, status FROM orders", parsed).build();
 ///
@@ -224,7 +224,6 @@ fn append_offset(sql: &mut String, offset: &str) {
 ///     let (sql, args) = QueryBuilder::from_str(
 ///         "SELECT * FROM orders",
 ///         query,
-///         Postgres,
 ///     )
 ///     .build();
 ///
@@ -263,7 +262,7 @@ macro_rules! sqlx_bind {
 
 #[cfg(test)]
 mod test {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
 
     use convert_case::Case;
 
@@ -276,11 +275,7 @@ mod test {
         let query =
             "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&limit=10&offset=0";
 
-        let parsed = UrlQuery::new(
-            query,
-            &HashSet::from(["userId", "userName", "orderId", "price"]),
-        )
-        .unwrap();
+        let parsed = UrlQuery::new(query, ["userId", "userName", "orderId", "price"]).unwrap();
 
         let (sql, args) = QueryBuilder::from_str("SELECT * FROM orders", parsed)
             .convert_case(Case::Snake)
@@ -302,11 +297,7 @@ mod test {
         let query =
             "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&limit=10&offset=0";
 
-        let parsed = UrlQuery::new(
-            query,
-            &HashSet::from(["userId", "userName", "orderId", "price"]),
-        )
-        .unwrap();
+        let parsed = UrlQuery::new(query, ["userId", "userName", "orderId", "price"]).unwrap();
 
         let (sql, args) = QueryBuilder::new("orders", vec!["id", "status"], parsed)
             .convert_case(Case::Snake)
@@ -328,11 +319,7 @@ mod test {
         let query =
             "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&limit=10&offset=0";
 
-        let parsed = UrlQuery::new(
-            query,
-            &HashSet::from(["userId", "userName", "orderId", "price"]),
-        )
-        .unwrap();
+        let parsed = UrlQuery::new(query, ["userId", "userName", "orderId", "price"]).unwrap();
 
         let (sql, args) = QueryBuilder::new("orders", vec!["id", "status"], parsed)
             .append("JOIN users ON users.id = order.user_id")
@@ -357,7 +344,7 @@ mod test {
     fn test_query_builder_new_map_columns() {
         let query = "id=1&group=id&sort=createdAt-desc";
 
-        let parsed = UrlQuery::new(query, &HashSet::from(["id", "createdAt"])).unwrap();
+        let parsed = UrlQuery::new(query, ["id", "createdAt"]).unwrap();
 
         let (sql, args) = QueryBuilder::from_str(
             "SELECT orders.id, user_id, status, address_id, orders.created_at FROM orders",
@@ -383,7 +370,7 @@ mod test {
     fn test_append_where() {
         let query = "filter[]=userId-eq-1&filter[]=id-eq-2";
 
-        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "id"])).unwrap();
+        let parsed = UrlQuery::new(query, ["userId", "id"]).unwrap();
 
         let mut builder = QueryBuilder::from_str("", parsed);
 
@@ -400,7 +387,7 @@ mod test {
     fn test_shift_bind() {
         let query = "filter[]=userId-eq-1&filter[]=id-eq-2";
 
-        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "id"])).unwrap();
+        let parsed = UrlQuery::new(query, ["userId", "id"]).unwrap();
 
         let (sql, args) = QueryBuilder::from_str(
             "SELECT id, (SELECT postcode FROM address WHERE id = $1) FROM orders",
@@ -421,11 +408,7 @@ mod test {
         let query =
             "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&limit=10&offset=0";
 
-        let parsed = UrlQuery::new(
-            query,
-            &HashSet::from(["userId", "userName", "orderId", "price"]),
-        )
-        .unwrap();
+        let parsed = UrlQuery::new(query, ["userId", "userName", "orderId", "price"]).unwrap();
 
         let (sql, args) = QueryBuilder::new("orders", vec!["id", "status"], parsed)
             .convert_case(Case::Snake)

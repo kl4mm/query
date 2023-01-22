@@ -24,7 +24,12 @@ pub struct UrlQuery {
 }
 
 impl UrlQuery {
-    pub fn new(str: &str, allowed_fields: &HashSet<&str>) -> Result<Self, ParseError> {
+    pub fn new<'a>(
+        str: &str,
+        allowed_fields: impl Into<HashSet<&'a str>>,
+    ) -> Result<Self, ParseError> {
+        let allowed_fields: HashSet<&str> = allowed_fields.into();
+
         let mut params = HashSet::new();
 
         let queries: Vec<&str> = str.split("&").collect();
@@ -41,20 +46,20 @@ impl UrlQuery {
 
             if k == "filter[]" {
                 let filter = Filter::new(v)?;
-                check_allowed_fields(&filter.field, allowed_fields)?;
+                check_allowed_fields(&filter.field, &allowed_fields)?;
                 filters.push(filter);
                 continue;
             }
 
             if k == "group" {
-                check_allowed_fields(v, allowed_fields)?;
+                check_allowed_fields(v, &allowed_fields)?;
                 group = Some(v.to_owned());
                 continue;
             }
 
             if k == "sort" {
                 sort = Some(Sort::new(v)?);
-                check_allowed_fields(&sort.as_ref().unwrap().field, allowed_fields)?;
+                check_allowed_fields(&sort.as_ref().unwrap().field, &allowed_fields)?;
                 continue;
             }
 
@@ -68,7 +73,7 @@ impl UrlQuery {
                 continue;
             }
 
-            check_allowed_fields(k, allowed_fields)?;
+            check_allowed_fields(k, &allowed_fields)?;
             filters.push(Filter::from_key_value(k, v, Condition::EQ));
 
             // To check required:
@@ -150,8 +155,7 @@ mod tests {
         let query =
             "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&group=orderId";
 
-        let allowed = HashSet::from(["userId", "orderId", "price"]);
-        let parsed = UrlQuery::new(query, &allowed).unwrap();
+        let parsed = UrlQuery::new(query, ["userId", "orderId", "price"]).unwrap();
 
         let mut params = HashSet::new();
         params.insert("userId".to_owned());
@@ -190,7 +194,7 @@ mod tests {
     fn test_parse_query_empty() {
         let query = "";
 
-        let parsed = UrlQuery::new(query, &HashSet::from([])).unwrap();
+        let parsed = UrlQuery::new(query, []).unwrap();
 
         let expected = UrlQuery {
             params: HashSet::default(),
@@ -207,7 +211,7 @@ mod tests {
     fn test_parse_query_limit_offset() {
         let query = "limit=10&offset=0";
 
-        let parsed = UrlQuery::new(query, &HashSet::from([])).unwrap();
+        let parsed = UrlQuery::new(query, []).unwrap();
 
         let expected = UrlQuery {
             params: HashSet::default(),
@@ -225,7 +229,7 @@ mod tests {
     fn test_is_valid() {
         let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
-        let parsed = UrlQuery::new(query, &HashSet::from(["userId", "orderId", "price"])).unwrap();
+        let parsed = UrlQuery::new(query, ["userId", "orderId", "price"]).unwrap();
 
         let v1 = parsed.check_required(vec!["userId"]);
         assert!(v1.is_ok());
@@ -238,8 +242,7 @@ mod tests {
     fn test_allowed_fields() {
         let query = "userId=bob&filter[]=orderId-eq-1";
 
-        let allowed = HashSet::from(["userId"]);
-        let result = UrlQuery::new(query, &allowed);
+        let result = UrlQuery::new(query, ["userId"]);
 
         assert_eq!(result, Err(ParseError::InvalidField))
     }
