@@ -20,7 +20,7 @@ pub enum Database {
 ///
 /// let parsed = UrlQuery::new(query, &HashSet::from(["userId", "userName"])).unwrap();
 ///
-/// let (sql, args) = QueryBuilder::from_str("SELECT id, status FROM orders", parsed, Database::Postgres).build();
+/// let (sql, args) = QueryBuilder::from_str("SELECT id, status FROM orders", parsed).build();
 ///
 /// assert_eq!(sql, "SELECT id, status FROM orders WHERE userId = $1 AND userName = $2");
 /// assert_eq!(args.len(), 2);
@@ -42,14 +42,14 @@ impl<'a> QueryBuilder<'a> {
     /// ```ignore
     /// use query::sql::{QueryBuilder, Database};
     ///
-    /// let result = QueryBuilder::new("users", vec!["id", "first_name"], url_query, Database::Postgres);
+    /// let (sql, args) = QueryBuilder::new("users", vec!["id", "first_name"], url_query).build();
     /// ```
-    pub fn new(table: &str, columns: Vec<&str>, url_query: UrlQuery, database: Database) -> Self {
+    pub fn new(table: &str, columns: Vec<&str>, url_query: UrlQuery) -> Self {
         let sql = gen_sql_select(table, columns);
 
         Self {
             url_query,
-            _database: database,
+            _database: Database::Postgres,
             map_columns: HashMap::default(),
             shift_bind: 0,
             convert_case: None,
@@ -64,12 +64,12 @@ impl<'a> QueryBuilder<'a> {
     /// ```ignore
     /// use query::sql::{QueryBuilder, Database};
     ///
-    /// let result = QueryBuilder::from_str("SELECT * FROM users", url_query, Database::Postgres);
+    /// let (sql, args) = QueryBuilder::from_str("SELECT * FROM users", url_query).build();
     /// ```
-    pub fn from_str(sql: &str, url_query: UrlQuery, database: Database) -> Self {
+    pub fn from_str(sql: &str, url_query: UrlQuery) -> Self {
         Self {
             url_query,
-            _database: database,
+            _database: Database::Postgres,
             map_columns: HashMap::default(),
             shift_bind: 0,
             convert_case: None,
@@ -260,7 +260,7 @@ mod test {
 
     use crate::UrlQuery;
 
-    use super::{Database, QueryBuilder};
+    use super::QueryBuilder;
 
     #[test]
     fn test_query_builder_from_str() {
@@ -273,10 +273,9 @@ mod test {
         )
         .unwrap();
 
-        let (sql, args) =
-            QueryBuilder::from_str("SELECT * FROM orders", parsed, Database::Postgres)
-                .convert_case(Case::Snake)
-                .build();
+        let (sql, args) = QueryBuilder::from_str("SELECT * FROM orders", parsed)
+            .convert_case(Case::Snake)
+            .build();
 
         let expected = "SELECT * FROM orders \
         WHERE user_id = $1 AND user_name = $2 \
@@ -300,10 +299,9 @@ mod test {
         )
         .unwrap();
 
-        let (sql, args) =
-            QueryBuilder::new("orders", vec!["id", "status"], parsed, Database::Postgres)
-                .convert_case(Case::Snake)
-                .build();
+        let (sql, args) = QueryBuilder::new("orders", vec!["id", "status"], parsed)
+            .convert_case(Case::Snake)
+            .build();
 
         let expected = "SELECT id, status FROM orders \
         WHERE user_id = $1 AND user_name = $2 \
@@ -327,12 +325,11 @@ mod test {
         )
         .unwrap();
 
-        let (sql, args) =
-            QueryBuilder::new("orders", vec!["id", "status"], parsed, Database::Postgres)
-                .append("JOIN users ON users.id = order.user_id")
-                .append("JOIN inventory ON inventory.id = order.inventory_id")
-                .convert_case(Case::Snake)
-                .build();
+        let (sql, args) = QueryBuilder::new("orders", vec!["id", "status"], parsed)
+            .append("JOIN users ON users.id = order.user_id")
+            .append("JOIN inventory ON inventory.id = order.inventory_id")
+            .convert_case(Case::Snake)
+            .build();
 
         let expected = "SELECT id, status FROM orders \
         JOIN users ON users.id = order.user_id \
@@ -356,7 +353,6 @@ mod test {
         let (sql, args) = QueryBuilder::from_str(
             "SELECT orders.id, user_id, status, address_id, orders.created_at FROM orders",
             parsed,
-            Database::Postgres,
         )
         .append("JOIN order_items ON orders.id = order_items.order_id")
         .append("JOIN inventory ON order_items.inventory_id = inventory.id")
@@ -380,7 +376,7 @@ mod test {
 
         let parsed = UrlQuery::new(query, &HashSet::from(["userId", "id"])).unwrap();
 
-        let mut builder = QueryBuilder::from_str("", parsed, Database::Postgres);
+        let mut builder = QueryBuilder::from_str("", parsed);
 
         let mut args = builder.append_where().into_iter();
 
@@ -400,7 +396,6 @@ mod test {
         let (sql, args) = QueryBuilder::from_str(
             "SELECT id, (SELECT postcode FROM address WHERE id = $1) FROM orders",
             parsed,
-            Database::Postgres,
         )
         .shift_bind(1)
         .convert_case(Case::Snake)
