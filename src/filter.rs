@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use convert_case::{Case, Casing};
 
-use crate::ParseError;
+use crate::{sql::Database, ParseError};
 
 #[derive(Debug, PartialEq)]
 pub enum Condition {
@@ -89,28 +89,50 @@ impl Filter {
         filter
     }
 
-    fn to_sql(&self, mut filter: String, idx: usize, case: Option<Case>) -> String {
+    fn to_sql(
+        &self,
+        mut filter: String,
+        idx: usize,
+        case: Option<Case>,
+        database: &Database,
+    ) -> String {
+        // Check if we need to convert case
         match case {
             Some(case) => filter.push_str(&self.field.to_case(case)),
             None => filter.push_str(&self.field),
         }
+
+        // Push the comparison operator
         filter.push_str(" ");
         filter.push_str(self.condition.as_str());
         filter.push_str(" ");
-        filter.push_str("$");
-        filter.push_str(&idx.to_string());
+
+        // Push the parameters
+        match database {
+            Database::Postgres => {
+                filter.push_str("$");
+                filter.push_str(&idx.to_string());
+            }
+            Database::MySQL => filter.push_str("?"),
+        }
 
         filter
     }
 
-    pub fn to_sql_map_table(&self, idx: usize, table: Option<&&str>, case: Option<Case>) -> String {
+    pub fn to_sql_map_table(
+        &self,
+        idx: usize,
+        table: Option<&&str>,
+        case: Option<Case>,
+        database: &Database,
+    ) -> String {
         let mut filter = String::new();
         if let Some(table) = table {
             filter.push_str(table);
             filter.push_str(".")
         }
 
-        self.to_sql(filter, idx, case)
+        self.to_sql(filter, idx, case, &database)
     }
 }
 

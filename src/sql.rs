@@ -6,6 +6,7 @@ use crate::UrlQuery;
 
 pub enum Database {
     Postgres,
+    MySQL,
 }
 
 /// Generates an SQL query
@@ -14,7 +15,7 @@ pub enum Database {
 ///
 /// ```
 /// use std::collections::{HashMap, HashSet};
-/// use query::{UrlQuery, sql::{Database, QueryBuilder}};
+/// use query::{UrlQuery, sql::QueryBuilder};
 ///
 /// let query = "userId=123&userName=bob";
 ///
@@ -27,7 +28,7 @@ pub enum Database {
 /// ```
 pub struct QueryBuilder<'a> {
     url_query: UrlQuery,
-    _database: Database,
+    database: Database,
     map_columns: HashMap<&'a str, &'a str>,
     shift_bind: usize,
     convert_case: Option<Case>,
@@ -40,7 +41,7 @@ impl<'a> QueryBuilder<'a> {
     /// # Examples
     ///
     /// ```ignore
-    /// use query::sql::{QueryBuilder, Database};
+    /// use query::sql::QueryBuilder;
     ///
     /// let (sql, args) = QueryBuilder::new("users", vec!["id", "first_name"], url_query).build();
     /// ```
@@ -49,7 +50,7 @@ impl<'a> QueryBuilder<'a> {
 
         Self {
             url_query,
-            _database: Database::Postgres,
+            database: Database::Postgres,
             map_columns: HashMap::default(),
             shift_bind: 0,
             convert_case: None,
@@ -62,14 +63,14 @@ impl<'a> QueryBuilder<'a> {
     /// # Examples
     ///
     /// ```ignore
-    /// use query::sql::{QueryBuilder, Database};
+    /// use query::sql::QueryBuilder;
     ///
     /// let (sql, args) = QueryBuilder::from_str("SELECT * FROM users", url_query).build();
     /// ```
     pub fn from_str(sql: &str, url_query: UrlQuery) -> Self {
         Self {
             url_query,
-            _database: Database::Postgres,
+            database: Database::Postgres,
             map_columns: HashMap::default(),
             shift_bind: 0,
             convert_case: None,
@@ -78,8 +79,8 @@ impl<'a> QueryBuilder<'a> {
     }
 
     /// Set the database
-    pub fn database(mut self, database: Database) -> Self {
-        self._database = database;
+    pub fn set_database(mut self, database: Database) -> Self {
+        self.database = database;
 
         self
     }
@@ -113,7 +114,7 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
-    /// Append the WHERE clause to the SQL. Does nothing if there are no query/filter in the url query.
+    /// Append the WHERE clause to the SQL. Does nothing if there are no queries/filters in the url query.
     pub fn append_where(&mut self) -> Vec<(String, String)> {
         let mut args: Vec<(String, String)> = Vec::new();
 
@@ -125,6 +126,7 @@ impl<'a> QueryBuilder<'a> {
                 args.len() + self.shift_bind + 1,
                 table,
                 self.convert_case,
+                &self.database,
             ));
             args.push((filter.field.to_owned(), filter.value.to_owned()));
         }
@@ -265,7 +267,7 @@ mod test {
 
     use convert_case::Case;
 
-    use crate::UrlQuery;
+    use crate::{sql::Database, UrlQuery};
 
     use super::QueryBuilder;
 
@@ -412,5 +414,32 @@ mod test {
 
         assert_eq!(sql, expected);
         assert_eq!(args.len(), 2);
+    }
+
+    #[test]
+    fn test_query_builder_set_database_mysql() {
+        let query =
+            "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc&limit=10&offset=0";
+
+        let parsed = UrlQuery::new(
+            query,
+            &HashSet::from(["userId", "userName", "orderId", "price"]),
+        )
+        .unwrap();
+
+        let (sql, args) = QueryBuilder::new("orders", vec!["id", "status"], parsed)
+            .convert_case(Case::Snake)
+            .set_database(Database::MySQL)
+            .build();
+
+        let expected = "SELECT id, status FROM orders \
+        WHERE user_id = ? AND user_name = ? \
+        AND order_id = ? AND price >= ? \
+        ORDER BY price DESC \
+        LIMIT 10 \
+        OFFSET 0";
+
+        assert_eq!(sql, expected);
+        assert_eq!(args.len(), 4);
     }
 }
