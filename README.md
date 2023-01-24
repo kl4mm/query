@@ -12,8 +12,8 @@ let query = "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200
 
 let allowed = ["userId", "userName", "orderId", "price"];
 
-// This will return an error if it couldn't parse a parameter, eg filter[]=orderId-zz-1, or if one of the query parameters
-// weren't included in the allowed.
+// This will return an error if it couldn't parse a parameter, eg filter[]=orderId-zz-1, or if one of 
+// the query parameters weren't included in the allowed.
 let parsed = UrlQuery::new(query, allowed).unwrap();
 
 // You can require certain fields:
