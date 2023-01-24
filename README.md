@@ -12,8 +12,8 @@ let query = "userId=123&userName=bob&filter[]=orderId-eq-1&filter[]=price-ge-200
 
 let allowed = ["userId", "userName", "orderId", "price"];
 
-// This will return an error if it couldn't parse a parameter, eg filter[]=orderId-zz-1, or if one of 
-// the query parameters weren't included in the allowed.
+// This will return an error if it couldn't parse a parameter, eg filter[]=orderId-zz-1, or if one
+// of the query parameters weren't included in the allowed.
 let parsed = UrlQuery::new(query, allowed).unwrap();
 
 // You can require certain fields:
@@ -38,8 +38,8 @@ assert_eq!(sql, expected);
 
 let mut query = sqlx::query_as(&sql);
 
-// This macro binds args to the query. You need to pass it an error to map to since it uses ? inside when
-// converting the types. You should include every field from the allowed array.
+// This macro binds args to the query. You need to pass it an error to map to since it uses ? 
+// inside when converting the types. You should include every field from the allowed array.
 sqlx_bind!(
     args => query,
     error: Either::Right(ParseError),
