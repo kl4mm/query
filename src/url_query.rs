@@ -89,7 +89,10 @@ impl UrlQuery {
         })
     }
 
-    pub fn check_required(&self, required: Vec<&str>) -> Result<(), String> {
+    pub fn check_required<'a, T>(&self, required: T) -> Result<(), String>
+    where
+        T: IntoIterator<Item = &'a str>,
+    {
         for r in required {
             if let None = self.params.get(r) {
                 let mut res = String::new();
@@ -226,15 +229,15 @@ mod tests {
     }
 
     #[test]
-    fn test_is_valid() {
+    fn test_required() {
         let query = "userId=bob&filter[]=orderId-eq-1&filter[]=price-ge-200&sort=price-desc";
 
         let parsed = UrlQuery::new(query, ["userId", "orderId", "price"]).unwrap();
 
-        let v1 = parsed.check_required(vec!["userId"]);
+        let v1 = parsed.check_required(["userId"]);
         assert!(v1.is_ok());
 
-        let v1 = parsed.check_required(vec!["userId", "limit", "offset"]);
+        let v1 = parsed.check_required(["userId", "limit", "offset"]);
         assert!(v1.is_err());
     }
 

@@ -17,7 +17,7 @@ let allowed = ["userId", "userName", "orderId", "price"];
 let parsed = UrlQuery::new(query, allowed).unwrap();
 
 // You can require certain fields:
-parsed.check_required(vec!["userId"]).unwrap();
+parsed.check_required(["userId"]).unwrap();
 
 // You can check if limit and offset are included:
 let (limit, offset) = parsed.check_limit_and_offset().unwrap();
